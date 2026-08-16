@@ -1,27 +1,25 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   FilmStripConfig, 
   FrameData, 
+  FilmStripProject,
   DEFAULT_CONFIG, 
   DEFAULT_FILTERS 
 } from './types';
 import { SidebarControls } from './components/SidebarControls';
 import { FilmStripPreview } from './components/FilmStripPreview';
 import { ExportModal } from './components/ExportModal';
+import { ProjectSaveLoadModal } from './components/ProjectSaveLoadModal';
 import { SAMPLE_CINEMA_IMAGES } from './utils/sampleImages';
+import { loadCurrentStateFromStorage, saveCurrentStateToStorage } from './utils/storage';
 
 export default function App() {
-  const [config, setConfig] = useState<FilmStripConfig>(() => {
-    // Try restoring saved config if available
-    try {
-      const saved = localStorage.getItem('cinema_strip_config');
-      return saved ? { ...DEFAULT_CONFIG, ...JSON.parse(saved) } : DEFAULT_CONFIG;
-    } catch {
-      return DEFAULT_CONFIG;
-    }
-  });
+  const [config, setConfig] = useState<FilmStripConfig>(DEFAULT_CONFIG);
+  const [projectName, setProjectName] = useState<string>('Cinema Film Reel');
+  const [isLoadedFromStorage, setIsLoadedFromStorage] = useState<boolean>(false);
+  const [lastAutoSavedTime, setLastAutoSavedTime] = useState<Date | null>(null);
 
-  // Initialize frames array with default data
+  // Initialize frames array with default empty data
   const [frames, setFrames] = useState<FrameData[]>(() => {
     return Array.from({ length: DEFAULT_CONFIG.frameCount }).map((_, i) => ({
       id: `frame-${i}-${Date.now()}`,
@@ -38,16 +36,57 @@ export default function App() {
 
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState<boolean>(false);
+
+  // Load saved state from IndexedDB across page reloads on initial mount
+  useEffect(() => {
+    let isMounted = true;
+    loadCurrentStateFromStorage()
+      .then((savedProject) => {
+        if (!isMounted) return;
+        if (savedProject && savedProject.config && Array.isArray(savedProject.frames) && savedProject.frames.length > 0) {
+          setConfig(savedProject.config);
+          setFrames(savedProject.frames);
+          if (savedProject.projectName) {
+            setProjectName(savedProject.projectName);
+          }
+          if (savedProject.updatedAt) {
+            setLastAutoSavedTime(new Date(savedProject.updatedAt));
+          }
+        }
+        setIsLoadedFromStorage(true);
+      })
+      .catch((err) => {
+        console.warn('Could not load cached state from IndexedDB:', err);
+        setIsLoadedFromStorage(true);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Debounced auto-save to IndexedDB whenever config, frames or projectName changes
+  useEffect(() => {
+    if (!isLoadedFromStorage) return;
+
+    const timer = setTimeout(() => {
+      saveCurrentStateToStorage(config, frames, projectName)
+        .then(() => {
+          setLastAutoSavedTime(new Date());
+        })
+        .catch((err) => {
+          console.warn('Auto-save error:', err);
+        });
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [config, frames, projectName, isLoadedFromStorage]);
 
   // Sync frames array length when config.frameCount changes
   const handleUpdateConfig = useCallback((updated: Partial<FilmStripConfig>) => {
     setConfig((prev) => {
       const newConfig = { ...prev, ...updated };
-      try {
-        localStorage.setItem('cinema_strip_config', JSON.stringify(newConfig));
-      } catch {
-        // Ignore localStorage quota errors
-      }
       return newConfig;
     });
 
@@ -187,10 +226,45 @@ export default function App() {
     setSelectedFrameIndex(null);
   }, []);
 
+  // Full Project Load handler
+  const handleLoadProject = useCallback((project: FilmStripProject) => {
+    if (project.config) {
+      setConfig(project.config);
+    }
+    if (Array.isArray(project.frames)) {
+      setFrames(project.frames);
+    }
+    if (project.projectName) {
+      setProjectName(project.projectName);
+    }
+    setSelectedFrameIndex(null);
+    setLastAutoSavedTime(new Date());
+  }, []);
+
+  // Reset to default fresh project
+  const handleResetToDefaults = useCallback(() => {
+    setConfig(DEFAULT_CONFIG);
+    setProjectName('Untitled Film Reel');
+    setFrames(
+      Array.from({ length: DEFAULT_CONFIG.frameCount }).map((_, i) => ({
+        id: `frame-${i}-${Date.now()}`,
+        imageUrl: null,
+        panX: 0,
+        panY: 0,
+        zoom: 1,
+        rotation: 0,
+        flipH: false,
+        flipV: false,
+        filters: { ...DEFAULT_FILTERS },
+      }))
+    );
+    setSelectedFrameIndex(null);
+  }, []);
+
   // Keyboard navigation & shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // If typing in input or textarea, don't trigger shortcuts
+      // If typing in input or textarea, don't trigger global shortcuts
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
         return;
       }
@@ -198,6 +272,8 @@ export default function App() {
       if (e.key === 'Escape') {
         if (isExportModalOpen) {
           setIsExportModalOpen(false);
+        } else if (isProjectModalOpen) {
+          setIsProjectModalOpen(false);
         } else {
           setSelectedFrameIndex(null);
         }
@@ -205,16 +281,34 @@ export default function App() {
         if (selectedFrameIndex !== null) {
           handleRemoveImageFromFrame(selectedFrameIndex);
         }
-      } else if (e.key === 'ArrowRight' && selectedFrameIndex !== null) {
+      } else if (
+        selectedFrameIndex !== null &&
+        frames[selectedFrameIndex]?.imageUrl &&
+        ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)
+      ) {
+        // When an image is selected, arrow keys move the image inside the frame
+        e.preventDefault();
+        const step = e.shiftKey ? 20 : 4;
+        const currentFrame = frames[selectedFrameIndex];
+        let newPanX = currentFrame.panX;
+        let newPanY = currentFrame.panY;
+
+        if (e.key === 'ArrowLeft') newPanX -= step;
+        if (e.key === 'ArrowRight') newPanX += step;
+        if (e.key === 'ArrowUp') newPanY -= step;
+        if (e.key === 'ArrowDown') newPanY += step;
+
+        handleUpdateFrame(selectedFrameIndex, { panX: newPanX, panY: newPanY });
+      } else if (e.key === 'ArrowRight' && selectedFrameIndex !== null && !frames[selectedFrameIndex]?.imageUrl) {
         setSelectedFrameIndex((prev) => (prev !== null ? Math.min(config.frameCount - 1, prev + 1) : null));
-      } else if (e.key === 'ArrowLeft' && selectedFrameIndex !== null) {
+      } else if (e.key === 'ArrowLeft' && selectedFrameIndex !== null && !frames[selectedFrameIndex]?.imageUrl) {
         setSelectedFrameIndex((prev) => (prev !== null ? Math.max(0, prev - 1) : null));
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedFrameIndex, config.frameCount, isExportModalOpen, handleRemoveImageFromFrame]);
+  }, [selectedFrameIndex, frames, config.frameCount, isExportModalOpen, isProjectModalOpen, handleRemoveImageFromFrame, handleUpdateFrame]);
 
   const filledFramesCount = frames.filter((f) => !!f.imageUrl).length;
 
@@ -229,8 +323,10 @@ export default function App() {
         onBatchUpload={handleBatchUpload}
         onClearAllImages={handleClearAllImages}
         onOpenExportModal={() => setIsExportModalOpen(true)}
+        onOpenProjectModal={() => setIsProjectModalOpen(true)}
         filledFramesCount={filledFramesCount}
         totalFramesCount={config.frameCount}
+        lastAutoSavedTime={lastAutoSavedTime}
       />
 
       {/* Main Interactive Film Strip Canvas Preview Area */}
@@ -242,6 +338,8 @@ export default function App() {
         onUpdateFrame={handleUpdateFrame}
         onUploadImageForFrame={handleUploadImageForFrame}
         onRemoveImageFromFrame={handleRemoveImageFromFrame}
+        onOpenProjectModal={() => setIsProjectModalOpen(true)}
+        onOpenExportModal={() => setIsExportModalOpen(true)}
       />
 
       {/* High-Resolution Export Modal */}
@@ -252,6 +350,20 @@ export default function App() {
         frames={frames}
         defaultMultiplier={2}
       />
+
+      {/* Complete Project Save & Load Modal */}
+      <ProjectSaveLoadModal
+        isOpen={isProjectModalOpen}
+        onClose={() => setIsProjectModalOpen(false)}
+        config={config}
+        frames={frames}
+        projectName={projectName}
+        onProjectNameChange={setProjectName}
+        onLoadProject={handleLoadProject}
+        onResetToDefaults={handleResetToDefaults}
+        lastAutoSavedTime={lastAutoSavedTime}
+      />
     </div>
   );
 }
+

@@ -13,7 +13,11 @@ import {
   Camera, 
   ChevronRight, 
   ChevronLeft,
-  Info
+  Info,
+  Crosshair,
+  Hand,
+  Archive,
+  Download
 } from 'lucide-react';
 import { FilmStripConfig, FrameData } from '../types';
 import { calculateFilmStripGeometry } from '../utils/canvasExport';
@@ -27,6 +31,8 @@ interface FilmStripPreviewProps {
   onUpdateFrame: (index: number, data: Partial<FrameData>) => void;
   onUploadImageForFrame: (index: number, file: File) => void;
   onRemoveImageFromFrame: (index: number) => void;
+  onOpenProjectModal?: () => void;
+  onOpenExportModal?: () => void;
 }
 
 export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
@@ -37,14 +43,20 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
   onUpdateFrame,
   onUploadImageForFrame,
   onRemoveImageFromFrame,
+  onOpenProjectModal,
+  onOpenExportModal,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
   
-  // Viewport Zoom Scale for Preview stage
+  // Viewport Zoom Scale and Canvas Pan for Preview stage
   const [viewportScale, setViewportScale] = useState<number>(1);
   const [fitToWidth, setFitToWidth] = useState<boolean>(true);
-  
+  const [stagePan, setStagePan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isSpacePressed, setIsSpacePressed] = useState<boolean>(false);
+  const [isStageDragging, setIsStageDragging] = useState<boolean>(false);
+  const [stageDragStart, setStageDragStart] = useState<{ x: number; y: number; initialX: number; initialY: number } | null>(null);
+
   // Drag-to-pan state within individual frame image
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const [panStart, setPanStart] = useState<{ x: number; y: number; initialPanX: number; initialPanY: number } | null>(null);
@@ -69,6 +81,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
         // Pick best fitting scale capped at 1.0 (or slightly larger if very small)
         const bestScale = Math.min(1.1, Math.max(0.35, Math.min(scaleX, scaleY)));
         setViewportScale(bestScale);
+        setStagePan({ x: 0, y: 0 });
       }
     });
 
@@ -76,8 +89,105 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
     return () => observer.disconnect();
   }, [fitToWidth, geo.filmWidth, geo.filmHeight]);
 
-  // Handle pointer panning on image
+  // Spacebar tracking for canvas-wide panning
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        setIsSpacePressed(true);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space' || e.key === ' ') {
+        setIsSpacePressed(false);
+      }
+    };
+
+    const handleBlur = () => {
+      setIsSpacePressed(false);
+      setIsStageDragging(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
+  // Native wheel listener on container for Ctrl + Wheel Canvas Zooming
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleNativeWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+        setViewportScale((prev) => {
+          const next = Math.min(4.0, Math.max(0.15, prev * zoomFactor));
+          return parseFloat(next.toFixed(3));
+        });
+        setFitToWidth(false);
+      }
+    };
+
+    container.addEventListener('wheel', handleNativeWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleNativeWheel);
+    };
+  }, []);
+
+  // Stage Canvas Pan Handlers (Space + Drag, or Middle Click Drag)
+  const handleStagePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isSpacePressed || e.button === 1) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsStageDragging(true);
+      setStageDragStart({
+        x: e.clientX,
+        y: e.clientY,
+        initialX: stagePan.x,
+        initialY: stagePan.y,
+      });
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }
+  };
+
+  const handleStagePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isStageDragging && stageDragStart) {
+      const dx = e.clientX - stageDragStart.x;
+      const dy = e.clientY - stageDragStart.y;
+      setStagePan({
+        x: stageDragStart.initialX + dx,
+        y: stageDragStart.initialY + dy,
+      });
+      setFitToWidth(false);
+    }
+  };
+
+  const handleStagePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isStageDragging) {
+      setIsStageDragging(false);
+      setStageDragStart(null);
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        // Safe ignore
+      }
+    }
+  };
+
+  // Handle pointer panning on individual image inside frame
   const handlePointerDown = (e: React.PointerEvent, index: number) => {
+    if (isSpacePressed) return; // Prioritize canvas panning when space is held
     const frame = frames[index];
     if (!frame || !frame.imageUrl) return;
 
@@ -121,6 +231,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
 
   // Wheel zoom on frame
   const handleWheel = (e: React.WheelEvent, index: number) => {
+    if (e.ctrlKey || e.metaKey) return; // Handled by canvas zoom listener
     const frame = frames[index];
     if (!frame || !frame.imageUrl) return;
 
@@ -205,13 +316,28 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
 
         {/* Viewport Zoom & Fit Controls */}
         <div className="flex items-center gap-1.5 bg-zinc-950/80 p-1 rounded-lg border border-zinc-800">
+          {(stagePan.x !== 0 || stagePan.y !== 0) && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setStagePan({ x: 0, y: 0 });
+              }}
+              className="px-2 py-1 text-[11px] bg-zinc-800 hover:bg-zinc-700 text-amber-300 rounded border border-amber-500/30 flex items-center gap-1 transition-colors"
+              title="Reset Canvas Pan Position"
+            >
+              <Crosshair className="w-3 h-3" />
+              <span>Center</span>
+            </button>
+          )}
+
           <button
             onClick={(e) => {
               e.stopPropagation();
               setFitToWidth(true);
+              setStagePan({ x: 0, y: 0 });
             }}
             className={`px-2.5 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
-              fitToWidth
+              fitToWidth && stagePan.x === 0 && stagePan.y === 0
                 ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
             }`}
@@ -230,7 +356,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
               setViewportScale((s) => Math.max(0.25, s - 0.15));
             }}
             className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors"
-            title="Zoom Out"
+            title="Zoom Out Canvas"
           >
             <ZoomOut className="w-3.5 h-3.5" />
           </button>
@@ -243,10 +369,10 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
             onClick={(e) => {
               e.stopPropagation();
               setFitToWidth(false);
-              setViewportScale((s) => Math.min(2.0, s + 0.15));
+              setViewportScale((s) => Math.min(2.5, s + 0.15));
             }}
             className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors"
-            title="Zoom In"
+            title="Zoom In Canvas"
           >
             <ZoomIn className="w-3.5 h-3.5" />
           </button>
@@ -267,19 +393,71 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
             100%
           </button>
         </div>
+
+        {/* Action Buttons: Save/Load Project & Export */}
+        <div className="flex items-center gap-2">
+          {onOpenProjectModal && (
+            <button
+              id="btn-preview-top-project"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenProjectModal();
+              }}
+              className="px-2.5 py-1 text-xs bg-zinc-900 hover:bg-zinc-800 text-amber-300 rounded-lg border border-zinc-700/80 flex items-center gap-1.5 transition-colors font-medium cursor-pointer"
+              title="Save or Load Project (.filmproj, .zip, .filmjson)"
+            >
+              <Archive className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Project</span>
+            </button>
+          )}
+
+          {onOpenExportModal && (
+            <button
+              id="btn-preview-top-export"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenExportModal();
+              }}
+              className="px-3 py-1 text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-lg flex items-center gap-1.5 transition-colors shadow-md cursor-pointer"
+              title="Export High-Resolution Image"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Export</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Interactive Stage Area */}
       <div
         ref={containerRef}
-        className="flex-1 w-full h-full overflow-auto flex items-center justify-center p-8 relative film-grain-bg"
+        onPointerDown={handleStagePointerDown}
+        onPointerMove={handleStagePointerMove}
+        onPointerUp={handleStagePointerUp}
+        onPointerCancel={handleStagePointerUp}
+        className={`flex-1 w-full h-full overflow-hidden flex items-center justify-center p-8 relative film-grain-bg select-none ${
+          isSpacePressed
+            ? isStageDragging
+              ? 'cursor-grabbing'
+              : 'cursor-grab'
+            : ''
+        }`}
       >
-        {/* Scaled Film Strip Container */}
+        {/* Floating Spacebar Pan Hint when Space is active */}
+        {isSpacePressed && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-amber-500/90 text-zinc-950 px-3 py-1 rounded-full text-xs font-semibold shadow-lg flex items-center gap-1.5 z-30 pointer-events-none animate-in fade-in">
+            <Hand className="w-3.5 h-3.5" />
+            <span>Canvas Pan Mode: Drag anywhere to move canvas</span>
+          </div>
+        )}
+
+        {/* Scaled & Translated Film Strip Container */}
         <div
           style={{
-            transform: `scale(${viewportScale})`,
+            transform: `translate(${stagePan.x}px, ${stagePan.y}px) scale(${viewportScale})`,
             transformOrigin: 'center center',
-            transition: isPanning ? 'none' : 'transform 0.15s ease-out',
+            transition: isPanning || isStageDragging ? 'none' : 'transform 0.12s ease-out',
+            pointerEvents: isSpacePressed ? 'none' : 'auto',
           }}
           className="shrink-0 relative shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)]"
           onClick={(e) => e.stopPropagation()}
@@ -586,6 +764,8 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
           <FrameAdjuster
             frame={frames[selectedFrameIndex]}
             frameIndex={selectedFrameIndex}
+            frameWidth={geo.frameWidth}
+            frameHeight={geo.frameHeight}
             onUpdate={(updated) => onUpdateFrame(selectedFrameIndex, updated)}
             onRemoveImage={() => onRemoveImageFromFrame(selectedFrameIndex)}
             onReplaceImage={() => fileInputRefs.current[selectedFrameIndex]?.click()}
@@ -625,10 +805,14 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
           </div>
         </div>
 
-        <div className="text-[11px] text-zinc-500 hidden sm:flex items-center gap-2">
-          <span>Shortcuts: <kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Esc</kbd> Deselect</span>
+        <div className="text-[11px] text-zinc-400 hidden md:flex items-center gap-3">
+          <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Arrow Keys</kbd> Move Image</span>
           <span>•</span>
-          <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Scroll</kbd> Zoom Image</span>
+          <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Space + Drag</kbd> Pan Canvas</span>
+          <span>•</span>
+          <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Ctrl + Scroll</kbd> Zoom Canvas</span>
+          <span>•</span>
+          <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Esc</kbd> Deselect</span>
         </div>
       </div>
     </main>

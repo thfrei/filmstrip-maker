@@ -69,6 +69,17 @@ export interface ExportOptions {
   filename: string;
 }
 
+export interface FilmStripProject {
+  version: string;
+  projectName: string;
+  createdAt: string;
+  updatedAt: string;
+  config: FilmStripConfig;
+  frames: FrameData[];
+}
+
+export const PROJECT_VERSION = '1.0.0';
+
 export const DEFAULT_FILTERS: ImageFilterSettings = {
   brightness: 100,
   contrast: 100,

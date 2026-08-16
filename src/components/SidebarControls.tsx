@@ -17,7 +17,10 @@ import {
   Zap,
   Maximize,
   Eye,
-  EyeOff
+  EyeOff,
+  Archive,
+  FolderOpen,
+  HardDrive
 } from 'lucide-react';
 import { FilmStripConfig, AspectRatioType, DEFAULT_CONFIG } from '../types';
 
@@ -29,8 +32,10 @@ interface SidebarControlsProps {
   onBatchUpload: (files: FileList) => void;
   onClearAllImages: () => void;
   onOpenExportModal: () => void;
+  onOpenProjectModal: () => void;
   filledFramesCount: number;
   totalFramesCount: number;
+  lastAutoSavedTime: Date | null;
 }
 
 export const SidebarControls: React.FC<SidebarControlsProps> = ({
@@ -41,8 +46,10 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
   onBatchUpload,
   onClearAllImages,
   onOpenExportModal,
+  onOpenProjectModal,
   filledFramesCount,
   totalFramesCount,
+  lastAutoSavedTime,
 }) => {
   // Collapsible section state
   const [openSections, setOpenSections] = useState({
@@ -190,37 +197,65 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
             <h1 className="text-sm font-bold tracking-tight text-zinc-100 leading-none">
               Cinema Film Strip
             </h1>
-            <p className="text-[11px] text-zinc-400 mt-0.5">Custom Strip Generator</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[10px] text-zinc-400 font-mono" title="Auto-saved to browser IndexedDB">
+                {lastAutoSavedTime ? 'Auto-Saved' : 'Ready'}
+              </span>
+            </div>
           </div>
         </div>
 
-        <button
-          onClick={onResetConfig}
-          title="Reset to default settings"
-          className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded-md transition-colors text-xs flex items-center gap-1"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            id="btn-open-project-manager"
+            onClick={onOpenProjectModal}
+            title="Save / Open Project (.filmproj, .zip, .filmjson)"
+            className="p-1.5 hover:bg-zinc-800 text-amber-400 hover:text-amber-300 rounded-md transition-colors text-xs flex items-center gap-1 border border-zinc-700/60"
+          >
+            <Archive className="w-3.5 h-3.5" />
+            <span className="text-[11px] font-semibold pr-0.5">Project</span>
+          </button>
+
+          <button
+            onClick={onResetConfig}
+            title="Reset to default settings"
+            className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded-md transition-colors text-xs flex items-center gap-1"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Quick Action Bar */}
-      <div className="p-3 bg-zinc-950/40 border-b border-zinc-800/80 grid grid-cols-2 gap-2">
-        <button
-          id="btn-load-sample-stills"
-          onClick={onLoadDemoImages}
-          className="py-1.5 px-2.5 bg-zinc-800 hover:bg-zinc-700/80 text-zinc-200 rounded-lg text-xs font-medium border border-zinc-700 flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          Load Demo Stills
-        </button>
+      <div className="p-3 bg-zinc-950/40 border-b border-zinc-800/80 space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            id="btn-load-sample-stills"
+            onClick={onLoadDemoImages}
+            className="py-1.5 px-2.5 bg-zinc-800 hover:bg-zinc-700/80 text-zinc-200 rounded-lg text-xs font-medium border border-zinc-700 flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            Load Demo Stills
+          </button>
+
+          <button
+            id="btn-batch-upload"
+            onClick={() => fileInputRef.current?.click()}
+            className="py-1.5 px-2.5 bg-zinc-800 hover:bg-zinc-700/80 text-zinc-200 rounded-lg text-xs font-medium border border-zinc-700 flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+          >
+            <UploadCloud className="w-3.5 h-3.5 text-blue-400" />
+            Batch Upload
+          </button>
+        </div>
 
         <button
-          id="btn-batch-upload"
-          onClick={() => fileInputRef.current?.click()}
-          className="py-1.5 px-2.5 bg-zinc-800 hover:bg-zinc-700/80 text-zinc-200 rounded-lg text-xs font-medium border border-zinc-700 flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+          id="btn-save-load-project-quick"
+          onClick={onOpenProjectModal}
+          className="w-full py-1.5 px-2.5 bg-zinc-900 hover:bg-zinc-800/90 text-amber-300 rounded-lg text-xs font-medium border border-amber-500/30 flex items-center justify-center gap-1.5 transition-all"
         >
-          <UploadCloud className="w-3.5 h-3.5 text-blue-400" />
-          Batch Upload
+          <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+          <span>Save / Open Project File (.filmproj / .zip)</span>
         </button>
 
         <input
