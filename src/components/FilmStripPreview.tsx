@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { FilmStripConfig, FrameData } from '../types';
 import { calculateFilmStripGeometry } from '../utils/canvasExport';
-import { FrameAdjuster } from './FrameAdjuster';
+import { FrameBottomBar } from './FrameBottomBar';
 
 interface FilmStripPreviewProps {
   config: FilmStripConfig;
@@ -594,6 +594,24 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                 }
                 const filterString = filterParts.join(' ') || 'none';
 
+                // Calculate uncropped base dimensions matching canvas exporter
+                const imgNaturalW = frameData.imageNaturalWidth;
+                const imgNaturalH = frameData.imageNaturalHeight;
+                const imgAspect = (imgNaturalW && imgNaturalH)
+                  ? (imgNaturalW / imgNaturalH)
+                  : (geo.frameWidth / geo.frameHeight);
+                const frameAspect = geo.frameWidth / geo.frameHeight;
+
+                let baseW = geo.frameWidth;
+                let baseH = geo.frameHeight;
+                if (imgAspect > frameAspect) {
+                  baseH = geo.frameHeight;
+                  baseW = geo.frameHeight * imgAspect;
+                } else {
+                  baseW = geo.frameWidth;
+                  baseH = geo.frameWidth / imgAspect;
+                }
+
                 return (
                   <div
                     key={`frame-col-${index}`}
@@ -654,7 +672,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                       {frameData.imageUrl ? (
                         /* Loaded & Transformed Image Container */
                         <div
-                          className={`w-full h-full flex items-center justify-center relative select-none ${
+                          className={`w-full h-full flex items-center justify-center relative select-none overflow-hidden ${
                             isSelected ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-pointer'
                           }`}
                           onPointerDown={(e) => handlePointerDown(e, index)}
@@ -667,16 +685,34 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                             src={frameData.imageUrl}
                             alt={`Frame ${index + 1}`}
                             draggable={false}
+                            onLoad={(e) => {
+                              const target = e.currentTarget;
+                              if (
+                                target.naturalWidth &&
+                                target.naturalHeight &&
+                                (target.naturalWidth !== frameData.imageNaturalWidth ||
+                                  target.naturalHeight !== frameData.imageNaturalHeight)
+                              ) {
+                                onUpdateFrame(index, {
+                                  imageNaturalWidth: target.naturalWidth,
+                                  imageNaturalHeight: target.naturalHeight,
+                                });
+                              }
+                            }}
                             style={{
+                              position: 'absolute',
+                              left: '50%',
+                              top: '50%',
+                              width: `${baseW}px`,
+                              height: `${baseH}px`,
+                              marginLeft: `${-baseW / 2}px`,
+                              marginTop: `${-baseH / 2}px`,
                               transform: `translate(${frameData.panX}px, ${frameData.panY}px) rotate(${frameData.rotation}deg) scale(${
                                 (frameData.flipH ? -1 : 1) * frameData.zoom
                               }, ${(frameData.flipV ? -1 : 1) * frameData.zoom})`,
                               filter: filterString,
                               maxWidth: 'none',
                               maxHeight: 'none',
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
                               transition: isPanning ? 'none' : 'transform 0.05s ease-out',
                             }}
                             className="pointer-events-none select-none origin-center"
@@ -838,28 +874,13 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
         </div>
       </div>
 
-      {/* Floating Selected Frame Adjustment Toolbar */}
-      {selectedFrameIndex !== null && frames[selectedFrameIndex] && frames[selectedFrameIndex].imageUrl && (
-        <div className="absolute bottom-6 right-6 z-40 animate-in slide-in-from-bottom-4 duration-200">
-          <FrameAdjuster
-            frame={frames[selectedFrameIndex]}
-            frameIndex={selectedFrameIndex}
-            totalFrames={config.frameCount}
-            frameWidth={geo.frameWidth}
-            frameHeight={geo.frameHeight}
-            onUpdate={(updated) => onUpdateFrame(selectedFrameIndex, updated)}
-            onRemoveImage={() => onRemoveImageFromFrame(selectedFrameIndex)}
-            onReplaceImage={() => fileInputRefs.current[selectedFrameIndex]?.click()}
-            onMoveFrame={(dir) => onMoveFrame?.(selectedFrameIndex, dir)}
-            onClose={() => onSelectFrame(null)}
-          />
-        </div>
-      )}
-
-      {/* Quick Navigation / Selection Bar at Bottom */}
-      <div className="h-10 border-t border-zinc-800/80 bg-zinc-900/80 px-4 flex items-center justify-between shrink-0 text-xs text-zinc-400 z-10">
+      {/* Status Bar: Active Frame Indicators & Keyboard Shortcuts */}
+      <div 
+        id="film-status-bar"
+        className="h-9 border-t border-zinc-800/80 bg-zinc-900/90 px-4 flex items-center justify-between shrink-0 text-xs text-zinc-400 z-10"
+      >
         <div className="flex items-center gap-2">
-          <span>Active Frames:</span>
+          <span className="font-semibold text-zinc-300 text-[11px]">Active Frames:</span>
           <div className="flex items-center gap-1">
             {Array.from({ length: config.frameCount }).map((_, i) => {
               const hasImg = !!frames[i]?.imageUrl;
@@ -869,16 +890,16 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                   key={`frame-dot-${i}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onSelectFrame(i);
+                    onSelectFrame(isSelected ? null : i);
                   }}
-                  className={`px-2 py-0.5 rounded text-[11px] font-mono transition-all ${
+                  className={`px-2 py-0.5 rounded text-[11px] font-mono transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-amber-500 text-zinc-950 font-bold'
+                      ? 'bg-amber-500 text-zinc-950 font-bold shadow'
                       : hasImg
                       ? 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700 border border-zinc-700'
                       : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800 border border-zinc-800'
                   }`}
-                  title={`Frame ${i + 1} (${hasImg ? 'Has Image' : 'Empty'})`}
+                  title={`Frame ${i + 1} (${hasImg ? 'Has Image' : 'Empty'}) - Click to inspect`}
                 >
                   #{i + 1}
                 </button>
@@ -899,6 +920,21 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
           <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Esc</kbd> Deselect</span>
         </div>
       </div>
+
+      {/* Frame Options Bottom Bar (Docked directly below Status Bar) */}
+      <FrameBottomBar
+        frame={selectedFrameIndex !== null ? frames[selectedFrameIndex] : null}
+        frameIndex={selectedFrameIndex}
+        totalFrames={config.frameCount}
+        frameWidth={geo.frameWidth}
+        frameHeight={geo.frameHeight}
+        onUpdate={(updated) => selectedFrameIndex !== null && onUpdateFrame(selectedFrameIndex, updated)}
+        onRemoveImage={() => selectedFrameIndex !== null && onRemoveImageFromFrame(selectedFrameIndex)}
+        onReplaceImage={() => selectedFrameIndex !== null && fileInputRefs.current[selectedFrameIndex]?.click()}
+        onMoveFrame={(dir) => selectedFrameIndex !== null && onMoveFrame?.(selectedFrameIndex, dir)}
+        onSelectFrame={onSelectFrame}
+        onClose={() => onSelectFrame(null)}
+      />
     </main>
   );
 };
