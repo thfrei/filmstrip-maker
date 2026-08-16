@@ -52,16 +52,21 @@ export function calculateFilmStripGeometry(config: FilmStripConfig, multiplier: 
   const filmHeight = Math.round(config.filmHeight * M);
   
   // Outer borders
-  const outerBorder = Math.round(config.outerBorderWidth * M);
+  const outerBorder = Math.round((config.outerBorderWidth ?? 6) * M);
   
-  // Sprocket track margin and dimensions
-  const sprocketMarginTop = Math.round((config.sprocketMarginTop ?? 8) * M);
+  // Text area & margins (Text on the outer top and outer bottom edges)
+  const textMargin = Math.round((config.textMarginTop ?? 8) * M);
+  const fontSize = Math.max(8, Math.round((config.fontSize ?? 11) * M));
+  const textAreaHeight = Math.max(fontSize + 4 * M, Math.round(16 * M));
+  
+  // Sprocket track margin and dimensions (Sprockets between text and frames)
+  const sprocketGap = Math.round((config.sprocketMarginTop ?? 6) * M);
   const sprocketHeight = Math.round((config.sprocketHeight ?? 22) * M);
-  const frameMargin = Math.round((config.frameMargin ?? 12) * M);
+  const frameMargin = Math.round((config.frameMargin ?? 10) * M);
   
-  // Header and footer heights for sprocket tracks & markings:
-  // Edge border -> sprocketMarginTop -> sprocketHeight -> frameMargin (gap to frame)
-  const headerHeight = sprocketMarginTop + sprocketHeight + frameMargin;
+  // Header and footer heights:
+  // Edge border -> textMargin -> textAreaHeight -> sprocketGap -> sprocketHeight -> frameMargin (gap to frame)
+  const headerHeight = textMargin + textAreaHeight + sprocketGap + sprocketHeight + frameMargin;
   const footerHeight = headerHeight;
   
   // Frame height available
@@ -78,17 +83,27 @@ export function calculateFilmStripGeometry(config: FilmStripConfig, multiplier: 
   }
   
   const frameWidth = Math.round(frameHeight * aspect);
-  const frameDivider = Math.round(config.frameDividerWidth * M);
+  const frameDivider = Math.round((config.frameDividerWidth ?? 12) * M);
   const sideMargin = Math.round(Math.max(24 * M, frameDivider * 1.5));
   
   const totalFramesWidth = (config.frameCount * frameWidth) + ((config.frameCount - 1) * frameDivider);
   const filmWidth = (outerBorder * 2) + (sideMargin * 2) + totalFramesWidth;
+  
+  // Key vertical Y positions
+  const topTextY = outerBorder + textMargin + (textAreaHeight / 2);
+  const topSprocketY = outerBorder + textMargin + textAreaHeight + sprocketGap;
+  const frameY = outerBorder + headerHeight;
+  const bottomSprocketY = frameY + frameHeight + frameMargin;
+  const bottomTextY = filmHeight - outerBorder - textMargin - (textAreaHeight / 2);
   
   return {
     M,
     filmWidth,
     filmHeight,
     outerBorder,
+    textMargin,
+    textAreaHeight,
+    sprocketGap,
     headerHeight,
     footerHeight,
     frameHeight,
@@ -96,9 +111,14 @@ export function calculateFilmStripGeometry(config: FilmStripConfig, multiplier: 
     frameDivider,
     sideMargin,
     aspect,
-    sprocketMarginTop,
+    sprocketMarginTop: sprocketGap,
     sprocketHeight,
     frameMargin,
+    topTextY,
+    topSprocketY,
+    frameY,
+    bottomSprocketY,
+    bottomTextY,
   };
 }
 
@@ -154,24 +174,24 @@ export async function renderFilmStripToCanvas(
   }
   
   // 3. Render Continuous Sprocket Holes along the entire width
-  const sprocketW = Math.round(config.sprocketWidth * M);
-  const sprocketH = Math.round(config.sprocketHeight * M);
-  const sprocketR = Math.round(config.sprocketRadius * M);
+  const sprocketW = Math.round((config.sprocketWidth ?? 12) * M);
+  const sprocketH = Math.round((config.sprocketHeight ?? 18) * M);
+  const sprocketR = Math.round((config.sprocketRadius ?? 4) * M);
   
-  // Calculate sprocket spacing: aligned per frame
-  const sprocketsPerFrame = Math.max(2, config.sprocketsPerFrame || 4);
+  // Calculate sprocket spacing: aligned per frame interval (sprockets per frame)
+  const sprocketsPerFrame = Math.max(1, Math.min(20, config.sprocketsPerFrame ?? 5));
   const pitch = (geo.frameWidth + geo.frameDivider) / sprocketsPerFrame;
   const totalSprockets = Math.ceil(geo.filmWidth / pitch) + 2;
   const startSprocketX = geo.outerBorder + (geo.sideMargin % pitch) / 2;
   
-  const topSprocketY = Math.round(config.sprocketMarginTop * M) + geo.outerBorder;
-  const bottomSprocketY = geo.filmHeight - geo.outerBorder - Math.round(config.sprocketMarginTop * M) - sprocketH;
+  const topSprocketY = geo.topSprocketY;
+  const bottomSprocketY = geo.bottomSprocketY;
   
   for (let s = 0; s < totalSprockets; s++) {
     const spX = startSprocketX + (s * pitch);
     if (spX + sprocketW > geo.filmWidth - geo.outerBorder) continue;
     
-    // Top sprocket
+    // Top sprocket (between top text and frame)
     drawRoundedRect(ctx, spX, topSprocketY, sprocketW, sprocketH, sprocketR);
     ctx.fillStyle = config.sprocketFillColor;
     ctx.fill();
@@ -181,7 +201,7 @@ export async function renderFilmStripToCanvas(
       ctx.stroke();
     }
     
-    // Bottom sprocket
+    // Bottom sprocket (between frame and bottom text)
     drawRoundedRect(ctx, spX, bottomSprocketY, sprocketW, sprocketH, sprocketR);
     ctx.fillStyle = config.sprocketFillColor;
     ctx.fill();
@@ -235,7 +255,7 @@ export async function renderFilmStripToCanvas(
     const frameY = geo.outerBorder + geo.headerHeight;
     
     // Frame background aperture
-    ctx.fillStyle = '#050507';
+    ctx.fillStyle = config.frameBgColor || '#050507';
     ctx.fillRect(frameX, frameY, geo.frameWidth, geo.frameHeight);
     
     // Draw Frame Image (with Pan, Zoom, Rotation, Filters, and Clipping)
@@ -321,11 +341,11 @@ export async function renderFilmStripToCanvas(
     const labelText = `${config.prefix}${formattedNum}${config.suffix}`;
     const frameCenterX = frameX + geo.frameWidth / 2;
     
-    // Top text (in header area)
+    // Top text (at the very top edge of the film strip)
     if (config.showTopText) {
       ctx.fillStyle = config.fontColor;
       ctx.textAlign = 'center';
-      const topTextY = topSprocketY + sprocketH + ((frameY - (topSprocketY + sprocketH)) / 2);
+      const topTextY = geo.topTextY;
       
       // Combine custom or default text
       const topLabel = frameData.customTextTop || labelText;
@@ -342,11 +362,11 @@ export async function renderFilmStripToCanvas(
       }
     }
     
-    // Bottom text (in footer area)
+    // Bottom text (at the very bottom edge of the film strip)
     if (config.showBottomText) {
       ctx.fillStyle = config.fontColor;
       ctx.textAlign = 'center';
-      const bottomTextY = (frameY + geo.frameHeight) + ((bottomSprocketY - (frameY + geo.frameHeight)) / 2);
+      const bottomTextY = geo.bottomTextY;
       
       let bottomLabel = frameData.customTextBottom || labelText;
       if (config.showFrameArrows) {

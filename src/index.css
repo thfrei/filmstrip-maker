@@ -30,9 +30,10 @@
   background: rgba(113, 113, 122, 0.9);
 }
 
-/* Film noise/grain subtle effect */
+/* Canvas background with light gray #A8A8A8 and subtle drafting grid */
 .film-grain-bg {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 0);
+  background-color: #A8A8A8;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.12) 1px, transparent 0);
   background-size: 16px 16px;
 }
 

@@ -39,14 +39,17 @@ export interface FilmStripConfig {
   frameDividerWidth: number;    // Space between adjacent frames (px)
   frameMargin: number;          // Distance between sprocket holes and frames (px)
   filmBgColor: string;          // Strip background / base color
+  frameBgColor: string;         // Background color of individual picture frames/apertures
   frameBorderColor: string;     // Border around individual frames
   sprocketFillColor: string;    // Sprocket hole fill color
   sprocketBorderColor: string;  // Sprocket hole border color
   sprocketWidth: number;        // Sprocket hole width (px)
   sprocketHeight: number;       // Sprocket hole height (px)
   sprocketRadius: number;       // Corner radius for sprocket holes (px)
-  sprocketsPerFrame: number;    // Sprockets per frame interval (e.g. 4 for 35mm)
-  sprocketMarginTop: number;    // Distance from outer edge to sprocket hole (px)
+  sprocketsPerFrame: number;    // Sprockets per frame interval (e.g. 4 to 10, default 5)
+  sprocketDistance?: number;    // Optional direct distance override
+  sprocketMarginTop: number;    // Gap between text markings and sprocket track (px)
+  textMarginTop: number;        // Distance of text markings from top/bottom outer edges (px)
   prefix: string;
   suffix: string;
   startNumber: number;
@@ -101,14 +104,16 @@ export const DEFAULT_CONFIG: FilmStripConfig = {
   frameDividerWidth: 12,
   frameMargin: 12,
   filmBgColor: '#000000',
+  frameBgColor: '#050508',
   frameBorderColor: '#18181b',
   sprocketFillColor: '#ffffff',
   sprocketBorderColor: '#27272a',
-  sprocketWidth: 16,
-  sprocketHeight: 22,
+  sprocketWidth: 12,
+  sprocketHeight: 18,
   sprocketRadius: 4,
-  sprocketsPerFrame: 4,
-  sprocketMarginTop: 8,
+  sprocketsPerFrame: 5,
+  sprocketMarginTop: 6,
+  textMarginTop: 8,
   prefix: 'SCENE-',
   suffix: '-A',
   startNumber: 1,

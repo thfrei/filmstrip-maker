@@ -774,9 +774,19 @@ export const FrameAdjuster: React.FC<FrameAdjusterProps> = ({
           <div className="space-y-2 pt-1">
             {/* Brightness */}
             <div>
-              <div className="flex justify-between text-[11px] text-zinc-400 mb-0.5">
+              <div className="flex justify-between items-center text-[11px] text-zinc-400 mb-0.5">
                 <span>Brightness</span>
-                <span className="font-mono text-zinc-300">{frame.filters.brightness}%</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="30"
+                    max="180"
+                    value={frame.filters.brightness}
+                    onChange={(e) => updateFilter('brightness', parseInt(e.target.value, 10) || 100)}
+                    className="w-12 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-[10px] text-center font-mono text-zinc-300 focus:outline-none focus:border-amber-500"
+                  />
+                  <span className="text-[10px] text-zinc-500">%</span>
+                </div>
               </div>
               <input
                 type="range"
@@ -790,9 +800,19 @@ export const FrameAdjuster: React.FC<FrameAdjusterProps> = ({
 
             {/* Contrast */}
             <div>
-              <div className="flex justify-between text-[11px] text-zinc-400 mb-0.5">
+              <div className="flex justify-between items-center text-[11px] text-zinc-400 mb-0.5">
                 <span>Contrast</span>
-                <span className="font-mono text-zinc-300">{frame.filters.contrast}%</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="30"
+                    max="180"
+                    value={frame.filters.contrast}
+                    onChange={(e) => updateFilter('contrast', parseInt(e.target.value, 10) || 100)}
+                    className="w-12 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-[10px] text-center font-mono text-zinc-300 focus:outline-none focus:border-amber-500"
+                  />
+                  <span className="text-[10px] text-zinc-500">%</span>
+                </div>
               </div>
               <input
                 type="range"
@@ -806,9 +826,19 @@ export const FrameAdjuster: React.FC<FrameAdjusterProps> = ({
 
             {/* Saturation */}
             <div>
-              <div className="flex justify-between text-[11px] text-zinc-400 mb-0.5">
+              <div className="flex justify-between items-center text-[11px] text-zinc-400 mb-0.5">
                 <span>Saturation</span>
-                <span className="font-mono text-zinc-300">{frame.filters.saturation}%</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="200"
+                    value={frame.filters.saturation}
+                    onChange={(e) => updateFilter('saturation', parseInt(e.target.value, 10) || 100)}
+                    className="w-12 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-[10px] text-center font-mono text-zinc-300 focus:outline-none focus:border-amber-500"
+                  />
+                  <span className="text-[10px] text-zinc-500">%</span>
+                </div>
               </div>
               <input
                 type="range"
@@ -822,9 +852,19 @@ export const FrameAdjuster: React.FC<FrameAdjusterProps> = ({
 
             {/* Grayscale */}
             <div>
-              <div className="flex justify-between text-[11px] text-zinc-400 mb-0.5">
+              <div className="flex justify-between items-center text-[11px] text-zinc-400 mb-0.5">
                 <span>B&W Grayscale</span>
-                <span className="font-mono text-zinc-300">{frame.filters.grayscale}%</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={frame.filters.grayscale}
+                    onChange={(e) => updateFilter('grayscale', parseInt(e.target.value, 10) || 0)}
+                    className="w-12 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-[10px] text-center font-mono text-zinc-300 focus:outline-none focus:border-amber-500"
+                  />
+                  <span className="text-[10px] text-zinc-500">%</span>
+                </div>
               </div>
               <input
                 type="range"

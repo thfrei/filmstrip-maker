@@ -73,14 +73,18 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
         onUpdateConfig({
           filmHeight: 380,
           aspectRatio: '3:2',
-          filmBgColor: '#0a0a0d',
+          filmBgColor: '#000000',
+          frameBgColor: '#050508',
           frameBorderColor: '#18181b',
-          sprocketFillColor: '#000000',
+          sprocketFillColor: '#ffffff',
           sprocketBorderColor: '#27272a',
-          sprocketWidth: 16,
-          sprocketHeight: 22,
+          sprocketWidth: 12,
+          sprocketHeight: 18,
           sprocketRadius: 4,
+          sprocketDistance: 24,
           sprocketsPerFrame: 4,
+          sprocketMarginTop: 6,
+          textMarginTop: 8,
           prefix: 'SCENE-',
           suffix: '-A',
           fontColor: '#f59e0b', // Kodak Amber Gold
@@ -96,13 +100,17 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
           filmHeight: 320,
           aspectRatio: '2.39:1',
           filmBgColor: '#07080a',
+          frameBgColor: '#020617',
           frameBorderColor: '#0f172a',
-          sprocketFillColor: '#020617',
+          sprocketFillColor: '#ffffff',
           sprocketBorderColor: '#1e293b',
-          sprocketWidth: 14,
-          sprocketHeight: 20,
-          sprocketRadius: 3,
+          sprocketWidth: 12,
+          sprocketHeight: 18,
+          sprocketRadius: 4,
+          sprocketDistance: 24,
           sprocketsPerFrame: 5,
+          sprocketMarginTop: 4,
+          textMarginTop: 6,
           prefix: 'SCOPE-',
           suffix: 'X',
           fontColor: '#38bdf8', // Neon Cyan
@@ -118,13 +126,17 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
           filmHeight: 390,
           aspectRatio: '4:3',
           filmBgColor: '#050505',
+          frameBgColor: '#09090b',
           frameBorderColor: '#262626',
-          sprocketFillColor: '#000000',
+          sprocketFillColor: '#ffffff',
           sprocketBorderColor: '#404040',
-          sprocketWidth: 18,
-          sprocketHeight: 24,
-          sprocketRadius: 5,
+          sprocketWidth: 12,
+          sprocketHeight: 18,
+          sprocketRadius: 4,
+          sprocketDistance: 24,
           sprocketsPerFrame: 4,
+          sprocketMarginTop: 6,
+          textMarginTop: 8,
           prefix: 'ILFORD-',
           suffix: '',
           fontColor: '#f4f4f5', // Crisp White
@@ -140,13 +152,17 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
           filmHeight: 370,
           aspectRatio: '16:9',
           filmBgColor: '#090d0b',
+          frameBgColor: '#020b06',
           frameBorderColor: '#14231b',
-          sprocketFillColor: '#020b06',
+          sprocketFillColor: '#ffffff',
           sprocketBorderColor: '#1b382b',
-          sprocketWidth: 16,
-          sprocketHeight: 22,
+          sprocketWidth: 12,
+          sprocketHeight: 18,
           sprocketRadius: 4,
+          sprocketDistance: 24,
           sprocketsPerFrame: 4,
+          sprocketMarginTop: 6,
+          textMarginTop: 8,
           prefix: 'FUJI-',
           suffix: '-ET',
           fontColor: '#34d399', // Emerald Greenish White
@@ -162,13 +178,17 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
           filmHeight: 310,
           aspectRatio: '4:3',
           filmBgColor: '#120f0c',
+          frameBgColor: '#050403',
           frameBorderColor: '#261d15',
-          sprocketFillColor: '#050403',
+          sprocketFillColor: '#ffffff',
           sprocketBorderColor: '#3d2e20',
-          sprocketWidth: 14,
-          sprocketHeight: 16,
+          sprocketWidth: 10,
+          sprocketHeight: 14,
           sprocketRadius: 3,
+          sprocketDistance: 32,
           sprocketsPerFrame: 2,
+          sprocketMarginTop: 4,
+          textMarginTop: 6,
           prefix: '16MM-',
           suffix: '',
           fontColor: '#fb923c', // Warm Vintage Orange
@@ -293,10 +313,18 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
               {/* Frame Count Slider */}
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <label className="text-zinc-400">Frame Count (1 - 10)</label>
-                  <span className="font-mono text-amber-400 font-bold bg-zinc-800/80 px-2 py-0.5 rounded text-xs">
-                    {config.frameCount} frames
-                  </span>
+                  <label className="text-zinc-400 font-medium">Frame Count (1 - 10)</label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={config.frameCount}
+                      onChange={(e) => onUpdateConfig({ frameCount: Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)) })}
+                      className="w-14 bg-zinc-900 border border-zinc-700/80 rounded px-1.5 py-0.5 text-xs text-center font-mono text-amber-400 font-bold focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="text-[10px] text-zinc-500">frames</span>
+                  </div>
                 </div>
                 <input
                   type="range"
@@ -327,8 +355,19 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
               {/* Film Height Slider */}
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <label className="text-zinc-400">Film Height</label>
-                  <span className="font-mono text-zinc-300">{config.filmHeight} px</span>
+                  <label className="text-zinc-400 font-medium">Film Height</label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="150"
+                      max="800"
+                      step="10"
+                      value={config.filmHeight}
+                      onChange={(e) => onUpdateConfig({ filmHeight: Math.max(150, parseInt(e.target.value, 10) || 200) })}
+                      className="w-16 bg-zinc-900 border border-zinc-700/80 rounded px-1.5 py-0.5 text-xs text-center font-mono text-amber-400 font-bold focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="text-[10px] text-zinc-500">px</span>
+                  </div>
                 </div>
                 <input
                   type="range"
@@ -343,7 +382,7 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
 
               {/* Frame Aspect Ratio */}
               <div className="space-y-1.5">
-                <label className="text-zinc-400 block">Frame Aspect Ratio</label>
+                <label className="text-zinc-400 block font-medium">Frame Aspect Ratio</label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
                     { id: '3:2', label: '3:2', sub: '35mm Classic' },
@@ -411,158 +450,258 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
 
           {openSections.stripStyle && (
             <div className="space-y-3.5 pt-1 animate-in fade-in duration-150">
-              {/* Frame Margin (Sprocket Gap) - Prominent Slider */}
-              <div className="bg-amber-500/5 p-2.5 rounded-lg border border-amber-500/20 space-y-1.5">
-                <div className="flex justify-between items-center text-[11px]">
-                  <span className="font-semibold text-amber-300 flex items-center gap-1">
-                    <span>Frame Margin (Sprocket Distance)</span>
-                  </span>
-                  <span className="font-mono text-amber-400 font-bold bg-zinc-900 px-2 py-0.5 rounded border border-amber-500/30">
-                    {config.frameMargin ?? 12}px
-                  </span>
-                </div>
-                <input
-                  id="slider-frame-margin"
-                  type="range"
-                  min="2"
-                  max="40"
-                  value={config.frameMargin ?? 12}
-                  onChange={(e) => onUpdateConfig({ frameMargin: parseInt(e.target.value, 10) })}
-                  className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                />
-                <div className="flex justify-between text-[9px] text-zinc-400">
-                  <span>Tight (2px)</span>
-                  <span>Standard (12px)</span>
-                  <span>Spacious (40px)</span>
-                </div>
-              </div>
-
-              {/* Outer Border, Frame Dividers & Frame Border */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="space-y-1">
-                  <div className="flex justify-between text-zinc-400 text-[11px]">
-                    <span>Frame Dividers</span>
-                    <span className="font-mono text-zinc-300">{config.frameDividerWidth}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="2"
-                    max="36"
-                    value={config.frameDividerWidth}
-                    onChange={(e) => onUpdateConfig({ frameDividerWidth: parseInt(e.target.value, 10) })}
-                    className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                  />
+              {/* Spacing & Margins Hierarchy */}
+              <div className="bg-amber-500/5 p-2.5 rounded-lg border border-amber-500/20 space-y-2.5">
+                <div className="text-zinc-200 font-medium text-[11px] flex items-center justify-between">
+                  <span className="font-semibold text-amber-300">Layout & Margin Hierarchy</span>
+                  <span className="text-[10px] text-amber-400 font-mono">Edge → Text → Sprockets → Frames</span>
                 </div>
 
-                <div className="space-y-1">
-                  <div className="flex justify-between text-zinc-400 text-[11px]">
-                    <span>Outer Border</span>
-                    <span className="font-mono text-zinc-300">{config.outerBorderWidth}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="24"
-                    value={config.outerBorderWidth}
-                    onChange={(e) => onUpdateConfig({ outerBorderWidth: parseInt(e.target.value, 10) })}
-                    className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex justify-between text-zinc-400 text-[11px]">
-                    <span>Frame Border Line</span>
-                    <span className="font-mono text-zinc-300">{config.frameBorderWidth}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="8"
-                    value={config.frameBorderWidth}
-                    onChange={(e) => onUpdateConfig({ frameBorderWidth: parseInt(e.target.value, 10) })}
-                    className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex justify-between text-zinc-400 text-[11px]">
-                    <span>Sprocket Edge Gap</span>
-                    <span className="font-mono text-zinc-300">{config.sprocketMarginTop}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="2"
-                    max="20"
-                    value={config.sprocketMarginTop}
-                    onChange={(e) => onUpdateConfig({ sprocketMarginTop: parseInt(e.target.value, 10) })}
-                    className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                  />
-                </div>
-              </div>
-
-              {/* Sprocket Hole Dimensions */}
-              <div className="space-y-1.5 bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800">
-                <div className="text-zinc-300 font-medium text-[11px] mb-1">
-                  Sprocket Perforations
-                </div>
-                
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <span className="text-[10px] text-zinc-400">Width</span>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-zinc-300 text-[11px]">
+                      <span>Sprocket-to-Frame Gap</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="60"
+                          value={config.frameMargin ?? 12}
+                          onChange={(e) => onUpdateConfig({ frameMargin: parseInt(e.target.value, 10) || 0 })}
+                          className="w-12 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-xs text-center font-mono text-amber-400 font-bold focus:outline-none focus:border-amber-500"
+                        />
+                        <span className="text-[10px] text-zinc-500">px</span>
+                      </div>
+                    </div>
                     <input
+                      id="slider-frame-margin"
                       type="range"
-                      min="10"
-                      max="28"
-                      value={config.sprocketWidth}
-                      onChange={(e) => onUpdateConfig({ sprocketWidth: parseInt(e.target.value, 10) })}
+                      min="2"
+                      max="40"
+                      value={config.frameMargin ?? 12}
+                      onChange={(e) => onUpdateConfig({ frameMargin: parseInt(e.target.value, 10) })}
                       className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
                     />
-                    <span className="font-mono text-[10px] text-zinc-400">{config.sprocketWidth}px</span>
                   </div>
 
-                  <div>
-                    <span className="text-[10px] text-zinc-400">Height</span>
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-zinc-300 text-[11px]">
+                      <span>Sprocket-to-Text Gap</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="-5"
+                          max="20"
+                          value={config.sprocketMarginTop ?? 6}
+                          onChange={(e) => onUpdateConfig({ sprocketMarginTop: parseInt(e.target.value, 10) || 0 })}
+                          className="w-12 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-xs text-center font-mono text-amber-400 font-bold focus:outline-none focus:border-amber-500"
+                        />
+                        <span className="text-[10px] text-zinc-500">px</span>
+                      </div>
+                    </div>
                     <input
+                      id="slider-sprocket-margin"
                       type="range"
-                      min="12"
-                      max="34"
-                      value={config.sprocketHeight}
-                      onChange={(e) => onUpdateConfig({ sprocketHeight: parseInt(e.target.value, 10) })}
+                      min="-5"
+                      max="20"
+                      value={config.sprocketMarginTop ?? 6}
+                      onChange={(e) => onUpdateConfig({ sprocketMarginTop: parseInt(e.target.value, 10) })}
                       className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
                     />
-                    <span className="font-mono text-[10px] text-zinc-400">{config.sprocketHeight}px</span>
+                  </div>
+                </div>
+
+                {/* Outer Border, Frame Dividers & Frame Border */}
+                <div className="grid grid-cols-3 gap-2 pt-1 border-t border-zinc-800/80">
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-zinc-400 text-[10px]">
+                      <span>Divider</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="60"
+                        value={config.frameDividerWidth}
+                        onChange={(e) => onUpdateConfig({ frameDividerWidth: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                        className="w-10 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-[10px] text-center font-mono text-zinc-300 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min="2"
+                      max="36"
+                      value={config.frameDividerWidth}
+                      onChange={(e) => onUpdateConfig({ frameDividerWidth: parseInt(e.target.value, 10) })}
+                      className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    />
                   </div>
 
-                  <div>
-                    <span className="text-[10px] text-zinc-400">Corner Radius</span>
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-zinc-400 text-[10px]">
+                      <span>Outer Border</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="40"
+                        value={config.outerBorderWidth}
+                        onChange={(e) => onUpdateConfig({ outerBorderWidth: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                        className="w-10 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-[10px] text-center font-mono text-zinc-300 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
                     <input
                       type="range"
                       min="0"
-                      max="10"
-                      value={config.sprocketRadius}
-                      onChange={(e) => onUpdateConfig({ sprocketRadius: parseInt(e.target.value, 10) })}
+                      max="24"
+                      value={config.outerBorderWidth}
+                      onChange={(e) => onUpdateConfig({ outerBorderWidth: parseInt(e.target.value, 10) })}
                       className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
                     />
-                    <span className="font-mono text-[10px] text-zinc-400">{config.sprocketRadius}px</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-zinc-400 text-[10px]">
+                      <span>Frame Line</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="16"
+                        value={config.frameBorderWidth}
+                        onChange={(e) => onUpdateConfig({ frameBorderWidth: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                        className="w-10 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-[10px] text-center font-mono text-zinc-300 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="8"
+                      value={config.frameBorderWidth}
+                      onChange={(e) => onUpdateConfig({ frameBorderWidth: parseInt(e.target.value, 10) })}
+                      className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sprockets Per Frame Control */}
+              <div className="space-y-2.5 bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-zinc-200 font-semibold text-[11px]">Sprockets Per Frame</span>
+                    <p className="text-[10px] text-zinc-400">Controls number of perforations per frame (4 – 10)</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <input
+                      id="input-sprockets-per-frame"
+                      type="number"
+                      min="4"
+                      max="10"
+                      value={config.sprocketsPerFrame ?? 5}
+                      onChange={(e) => onUpdateConfig({ sprocketsPerFrame: Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 5)) })}
+                      className="w-12 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-xs text-center font-mono text-amber-400 font-bold focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="text-[10px] text-zinc-500">holes</span>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[11px] text-zinc-400">Perforations per frame</span>
-                  <div className="flex gap-1">
-                    {[2, 3, 4, 5].map((cnt) => (
-                      <button
-                        key={cnt}
-                        onClick={() => onUpdateConfig({ sprocketsPerFrame: cnt })}
-                        className={`px-2 py-0.5 rounded text-[10px] ${
-                          config.sprocketsPerFrame === cnt
-                            ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40'
-                            : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                        }`}
-                      >
-                        {cnt}
-                      </button>
-                    ))}
+                <input
+                  id="slider-sprockets-per-frame"
+                  type="range"
+                  min="4"
+                  max="10"
+                  step="1"
+                  value={config.sprocketsPerFrame ?? 5}
+                  onChange={(e) => onUpdateConfig({ sprocketsPerFrame: parseInt(e.target.value, 10) })}
+                  className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                />
+
+                {/* Sprockets per frame quick buttons */}
+                <div className="grid grid-cols-7 gap-1">
+                  {[4, 5, 6, 7, 8, 9, 10].map((num) => (
+                    <button
+                      key={num}
+                      onClick={() => onUpdateConfig({ sprocketsPerFrame: num })}
+                      className={`py-1 px-0.5 text-center rounded border transition-colors ${
+                        (config.sprocketsPerFrame ?? 5) === num
+                          ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold'
+                          : 'bg-zinc-800/60 border-zinc-700/60 text-zinc-400 hover:bg-zinc-800'
+                      }`}
+                    >
+                      <div className="text-[10px] leading-none">{num}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Sprocket Hole Dimensions */}
+                <div className="pt-2 border-t border-zinc-800/80">
+                  <div className="text-zinc-300 font-medium text-[11px] mb-1.5">
+                    Sprocket Dimensions (Default 12×18, 4px)
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center text-[10px] text-zinc-400">
+                        <span>Width</span>
+                        <input
+                          type="number"
+                          min="4"
+                          max="40"
+                          value={config.sprocketWidth ?? 12}
+                          onChange={(e) => onUpdateConfig({ sprocketWidth: Math.max(2, parseInt(e.target.value, 10) || 2) })}
+                          className="w-10 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-[10px] text-center font-mono text-zinc-300 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      <input
+                        type="range"
+                        min="6"
+                        max="28"
+                        value={config.sprocketWidth ?? 12}
+                        onChange={(e) => onUpdateConfig({ sprocketWidth: parseInt(e.target.value, 10) })}
+                        className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center text-[10px] text-zinc-400">
+                        <span>Height</span>
+                        <input
+                          type="number"
+                          min="4"
+                          max="50"
+                          value={config.sprocketHeight ?? 18}
+                          onChange={(e) => onUpdateConfig({ sprocketHeight: Math.max(2, parseInt(e.target.value, 10) || 2) })}
+                          className="w-10 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-[10px] text-center font-mono text-zinc-300 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      <input
+                        type="range"
+                        min="8"
+                        max="34"
+                        value={config.sprocketHeight ?? 18}
+                        onChange={(e) => onUpdateConfig({ sprocketHeight: parseInt(e.target.value, 10) })}
+                        className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center text-[10px] text-zinc-400">
+                        <span>Radius</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="20"
+                          value={config.sprocketRadius ?? 4}
+                          onChange={(e) => onUpdateConfig({ sprocketRadius: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                          className="w-10 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-[10px] text-center font-mono text-zinc-300 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="10"
+                        value={config.sprocketRadius ?? 4}
+                        onChange={(e) => onUpdateConfig({ sprocketRadius: parseInt(e.target.value, 10) })}
+                        className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -601,6 +740,75 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
                           ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-sm'
                           : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
                       }`}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full border border-zinc-600 shrink-0"
+                        style={{ backgroundColor: s.color }}
+                      />
+                      <span className="truncate">{s.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Picture Frame Background Color */}
+              <div className="space-y-1.5 bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="text-zinc-300 font-medium text-[11px]">Picture Frame Background</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      id="input-frame-bg-color"
+                      type="color"
+                      value={config.frameBgColor || '#050508'}
+                      onChange={(e) => onUpdateConfig({ frameBgColor: e.target.value })}
+                      className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
+                      title="Choose custom picture frame background"
+                    />
+                    <input
+                      type="text"
+                      value={(config.frameBgColor || '#050508').toUpperCase()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.startsWith('#') || val.length <= 7) {
+                          onUpdateConfig({ frameBgColor: val });
+                        }
+                      }}
+                      className="font-mono text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-700/80 rounded px-1.5 py-0.5 w-16 text-center uppercase focus:outline-none focus:border-amber-500"
+                    />
+                    {config.frameBgColor && config.frameBgColor.toLowerCase() !== '#050508' && (
+                      <button
+                        type="button"
+                        onClick={() => onUpdateConfig({ frameBgColor: '#050508' })}
+                        title="Reset to default Dark Matte (#050508)"
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-amber-400 transition-colors"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Quick Swatch 4 Presets for Picture Frame Background */}
+                <div className="grid grid-cols-4 gap-1.5 pt-1">
+                  {[
+                    { color: '#050508', label: 'Dark (Default)' },
+                    { color: '#000000', label: 'Pure Black' },
+                    { color: '#18181b', label: 'Dark Zinc' },
+                    { color: '#ffffff', label: 'White' },
+                  ].map((s) => (
+                    <button
+                      key={s.color}
+                      type="button"
+                      onClick={() => onUpdateConfig({ frameBgColor: s.color })}
+                      className={`px-1.5 py-1 text-[10px] rounded border flex items-center justify-center gap-1 font-medium transition-all ${
+                        (config.frameBgColor || '#050508').toLowerCase() === s.color.toLowerCase()
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-sm'
+                          : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+                      }`}
+                      title={s.label}
                     >
                       <span
                         className="w-2.5 h-2.5 rounded-full border border-zinc-600 shrink-0"
@@ -717,6 +925,68 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
 
           {openSections.textNumbering && (
             <div className="space-y-3 pt-1 animate-in fade-in duration-150">
+              {/* Text Margin & Font Size Configuration */}
+              <div className="bg-amber-500/5 p-2.5 rounded-lg border border-amber-500/20 space-y-2.5">
+                <div className="text-zinc-200 font-medium text-[11px] flex items-center justify-between">
+                  <span className="font-semibold text-amber-300">Text Edge Margin & Size</span>
+                  <span className="text-[10px] text-amber-400 font-mono">Outer Edges</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-zinc-300 text-[11px]">
+                      <span>Edge-to-Text Gap</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="50"
+                          value={config.textMarginTop ?? 8}
+                          onChange={(e) => onUpdateConfig({ textMarginTop: parseInt(e.target.value, 10) || 0 })}
+                          className="w-12 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-xs text-center font-mono text-amber-400 font-bold focus:outline-none focus:border-amber-500"
+                        />
+                        <span className="text-[10px] text-zinc-500">px</span>
+                      </div>
+                    </div>
+                    <input
+                      id="slider-text-margin"
+                      type="range"
+                      min="0"
+                      max="30"
+                      value={config.textMarginTop ?? 8}
+                      onChange={(e) => onUpdateConfig({ textMarginTop: parseInt(e.target.value, 10) })}
+                      className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-zinc-300 text-[11px]">
+                      <span>Font Size</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="6"
+                          max="32"
+                          value={config.fontSize ?? 11}
+                          onChange={(e) => onUpdateConfig({ fontSize: Math.max(6, parseInt(e.target.value, 10) || 6) })}
+                          className="w-12 bg-zinc-900 border border-zinc-700/80 rounded px-1 py-0.5 text-xs text-center font-mono text-amber-400 font-bold focus:outline-none focus:border-amber-500"
+                        />
+                        <span className="text-[10px] text-zinc-500">px</span>
+                      </div>
+                    </div>
+                    <input
+                      id="slider-font-size"
+                      type="range"
+                      min="8"
+                      max="24"
+                      value={config.fontSize ?? 11}
+                      onChange={(e) => onUpdateConfig({ fontSize: parseInt(e.target.value, 10) })}
+                      className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Prefix & Suffix Inputs */}
               <div className="grid grid-cols-2 gap-2">
                 <div>

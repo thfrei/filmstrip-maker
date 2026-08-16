@@ -278,14 +278,14 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
     }
   };
 
-  // Sprocket calculation along the film strip
-  const sprocketsPerFrame = Math.max(2, config.sprocketsPerFrame || 4);
+  // Sprocket calculation along the film strip (sprockets per frame interval)
+  const sprocketsPerFrame = Math.max(1, Math.min(20, config.sprocketsPerFrame ?? 5));
   const pitch = (geo.frameWidth + geo.frameDivider) / sprocketsPerFrame;
   const totalSprockets = Math.ceil(geo.filmWidth / pitch) + 2;
   const startSprocketX = geo.outerBorder + (geo.sideMargin % pitch) / 2;
   
-  const topSprocketY = config.sprocketMarginTop + geo.outerBorder;
-  const bottomSprocketY = geo.filmHeight - geo.outerBorder - config.sprocketMarginTop - config.sprocketHeight;
+  const topSprocketY = geo.topSprocketY;
+  const bottomSprocketY = geo.bottomSprocketY;
 
   const fontFamilyClass =
     config.fontFamily === 'courier'
@@ -439,6 +439,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
         onPointerMove={handleStagePointerMove}
         onPointerUp={handleStagePointerUp}
         onPointerCancel={handleStagePointerUp}
+        style={{ backgroundColor: '#A8A8A8' }}
         className={`flex-1 w-full h-full overflow-hidden flex items-center justify-center p-8 relative film-grain-bg select-none ${
           isSpacePressed
             ? isStageDragging
@@ -479,7 +480,52 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
             }}
             className="relative rounded-sm select-none overflow-hidden"
           >
-            {/* SPROCKET HOLES (TOP TRACK) */}
+            {/* 1. TOP EDGE TEXT / LABEL ROW (AT THE VERY TOP EDGE OF FILM STRIP) */}
+            {config.showTopText && (
+              <div
+                className="absolute flex items-center pointer-events-none z-10"
+                style={{
+                  left: `${geo.outerBorder + geo.sideMargin}px`,
+                  top: `${geo.topTextY - (geo.textAreaHeight / 2)}px`,
+                  height: `${geo.textAreaHeight}px`,
+                  gap: `${geo.frameDivider}px`,
+                }}
+              >
+                {Array.from({ length: config.frameCount }).map((_, index) => {
+                  const frameData = frames[index] || { id: `frame-${index}` };
+                  const frameNum = config.startNumber + index;
+                  const formattedNum = config.padZeroes
+                    ? String(frameNum).padStart(2, '0')
+                    : String(frameNum);
+                  const defaultLabel = `${config.prefix}${formattedNum}${config.suffix}`;
+                  const topLabel = frameData.customTextTop || defaultLabel;
+
+                  return (
+                    <div
+                      key={`top-text-col-${index}`}
+                      className={`flex items-center justify-between text-center ${fontFamilyClass}`}
+                      style={{
+                        width: `${geo.frameWidth}px`,
+                        color: config.fontColor,
+                        fontSize: `${config.fontSize}px`,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {config.showFilmStockName && config.filmStockName ? (
+                        <span className="text-[9px] opacity-85 font-semibold uppercase tracking-wider pl-1 select-none truncate max-w-[45%] text-left">
+                          {config.filmStockName}
+                        </span>
+                      ) : <div />}
+
+                      <span className="font-bold tracking-wider select-none truncate">{topLabel}</span>
+                      <div />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 2. SPROCKET HOLES (TOP TRACK - BETWEEN TOP TEXT & FRAMES) */}
             <div
               className="absolute left-0 right-0 pointer-events-none"
               style={{
@@ -508,41 +554,12 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
               })}
             </div>
 
-            {/* SPROCKET HOLES (BOTTOM TRACK) */}
-            <div
-              className="absolute left-0 right-0 pointer-events-none"
-              style={{
-                top: `${bottomSprocketY}px`,
-                height: `${config.sprocketHeight}px`,
-              }}
-            >
-              {Array.from({ length: totalSprockets }).map((_, s) => {
-                const spX = startSprocketX + s * pitch;
-                if (spX + config.sprocketWidth > geo.filmWidth - geo.outerBorder) return null;
-                return (
-                  <div
-                    key={`bottom-sprocket-${s}`}
-                    style={{
-                      left: `${spX}px`,
-                      width: `${config.sprocketWidth}px`,
-                      height: `${config.sprocketHeight}px`,
-                      borderRadius: `${config.sprocketRadius}px`,
-                      backgroundColor: config.sprocketFillColor,
-                      borderColor: config.sprocketBorderColor,
-                      borderWidth: '1px',
-                    }}
-                    className="absolute top-0 shadow-inner"
-                  />
-                );
-              })}
-            </div>
-
-            {/* FILM FRAMES ROW */}
+            {/* 3. FILM PICTURE FRAMES ROW */}
             <div
               className="absolute flex items-center"
               style={{
                 left: `${geo.outerBorder + geo.sideMargin}px`,
-                top: `${geo.outerBorder + geo.headerHeight}px`,
+                top: `${geo.frameY}px`,
                 height: `${geo.frameHeight}px`,
                 gap: `${geo.frameDivider}px`,
               }}
@@ -562,14 +579,6 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
 
                 const isSelected = selectedFrameIndex === index;
                 const isDragOver = dragOverFrameIndex === index;
-
-                const frameNum = config.startNumber + index;
-                const formattedNum = config.padZeroes
-                  ? String(frameNum).padStart(2, '0')
-                  : String(frameNum);
-                const defaultLabel = `${config.prefix}${formattedNum}${config.suffix}`;
-                const topLabel = frameData.customTextTop || defaultLabel;
-                const bottomLabel = frameData.customTextBottom || defaultLabel;
 
                 // Compose CSS filter string for this frame
                 const f = frameData.filters || { brightness: 100, contrast: 100, saturation: 100, sepia: 0, grayscale: 0, vintageWarmth: 0 };
@@ -591,27 +600,6 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                     className="relative flex flex-col justify-center"
                     style={{ width: `${geo.frameWidth}px` }}
                   >
-                    {/* TOP EDGE TEXT / LABEL */}
-                    {config.showTopText && (
-                      <div
-                        className={`absolute left-0 right-0 flex items-center justify-between text-center pointer-events-none ${fontFamilyClass}`}
-                        style={{
-                          top: `-${Math.round((geo.frameMargin / 2) + (config.fontSize * 0.55))}px`,
-                          color: config.fontColor,
-                          fontSize: `${config.fontSize}px`,
-                        }}
-                      >
-                        {config.showFilmStockName && config.filmStockName ? (
-                          <span className="text-[9px] opacity-85 font-semibold uppercase tracking-wider pl-1">
-                            {config.filmStockName}
-                          </span>
-                        ) : <div />}
-                        
-                        <span className="font-bold tracking-wider">{topLabel}</span>
-                        <div />
-                      </div>
-                    )}
-
                     {/* THE APERTURE / IMAGE FRAME BOX */}
                     <div
                       id={`film-frame-${index}`}
@@ -636,7 +624,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                           : config.frameBorderColor,
                         borderWidth: `${Math.max(1, config.frameBorderWidth)}px`,
                         borderStyle: 'solid',
-                        backgroundColor: '#050508',
+                        backgroundColor: config.frameBgColor || '#050508',
                       }}
                       className={`relative overflow-hidden cursor-pointer transition-shadow rounded-sm ${
                         isSelected
@@ -756,43 +744,96 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                         </div>
                       )}
                     </div>
-
-                    {/* BOTTOM EDGE TEXT / LABEL & BARCODE */}
-                    {config.showBottomText && (
-                      <div
-                        className={`absolute left-0 right-0 flex items-center justify-between pointer-events-none ${fontFamilyClass}`}
-                        style={{
-                          bottom: `-${Math.round((geo.frameMargin / 2) + (config.fontSize * 0.55))}px`,
-                          color: config.fontColor,
-                          fontSize: `${config.fontSize}px`,
-                        }}
-                      >
-                        <div />
-                        <span className="font-bold tracking-wider">
-                          {config.showFrameArrows ? `▲ ${bottomLabel} ▲` : bottomLabel}
-                        </span>
-
-                        {/* DX Barcode Pattern */}
-                        {config.showEdgeBarcodes ? (
-                          <div className="flex items-center gap-0.5 opacity-80 pr-1">
-                            {[2, 1, 3, 1, 2, 4, 1, 3, 2, 1, 2, 1, 4].map((bw, bi) => (
-                              <div
-                                key={bi}
-                                style={{
-                                  width: `${bw}px`,
-                                  height: `${Math.round(config.fontSize * 0.75)}px`,
-                                  backgroundColor: bi % 2 === 0 ? config.fontColor : 'transparent',
-                                }}
-                              />
-                            ))}
-                          </div>
-                        ) : <div />}
-                      </div>
-                    )}
                   </div>
                 );
               })}
             </div>
+
+            {/* 4. SPROCKET HOLES (BOTTOM TRACK - BETWEEN FRAMES & BOTTOM TEXT) */}
+            <div
+              className="absolute left-0 right-0 pointer-events-none"
+              style={{
+                top: `${bottomSprocketY}px`,
+                height: `${config.sprocketHeight}px`,
+              }}
+            >
+              {Array.from({ length: totalSprockets }).map((_, s) => {
+                const spX = startSprocketX + s * pitch;
+                if (spX + config.sprocketWidth > geo.filmWidth - geo.outerBorder) return null;
+                return (
+                  <div
+                    key={`bottom-sprocket-${s}`}
+                    style={{
+                      left: `${spX}px`,
+                      width: `${config.sprocketWidth}px`,
+                      height: `${config.sprocketHeight}px`,
+                      borderRadius: `${config.sprocketRadius}px`,
+                      backgroundColor: config.sprocketFillColor,
+                      borderColor: config.sprocketBorderColor,
+                      borderWidth: '1px',
+                    }}
+                    className="absolute top-0 shadow-inner"
+                  />
+                );
+              })}
+            </div>
+
+            {/* 5. BOTTOM EDGE TEXT / LABEL & BARCODE ROW (AT THE VERY BOTTOM EDGE OF FILM STRIP) */}
+            {config.showBottomText && (
+              <div
+                className="absolute flex items-center pointer-events-none z-10"
+                style={{
+                  left: `${geo.outerBorder + geo.sideMargin}px`,
+                  top: `${geo.bottomTextY - (geo.textAreaHeight / 2)}px`,
+                  height: `${geo.textAreaHeight}px`,
+                  gap: `${geo.frameDivider}px`,
+                }}
+              >
+                {Array.from({ length: config.frameCount }).map((_, index) => {
+                  const frameData = frames[index] || { id: `frame-${index}` };
+                  const frameNum = config.startNumber + index;
+                  const formattedNum = config.padZeroes
+                    ? String(frameNum).padStart(2, '0')
+                    : String(frameNum);
+                  const defaultLabel = `${config.prefix}${formattedNum}${config.suffix}`;
+                  const bottomLabel = frameData.customTextBottom || defaultLabel;
+
+                  return (
+                    <div
+                      key={`bottom-text-col-${index}`}
+                      className={`flex items-center justify-between ${fontFamilyClass}`}
+                      style={{
+                        width: `${geo.frameWidth}px`,
+                        color: config.fontColor,
+                        fontSize: `${config.fontSize}px`,
+                        lineHeight: 1,
+                      }}
+                    >
+                      <div />
+                      <span className="font-bold tracking-wider select-none truncate">
+                        {config.showFrameArrows ? `▲ ${bottomLabel} ▲` : bottomLabel}
+                      </span>
+
+                      {/* DX Barcode Pattern */}
+                      {config.showEdgeBarcodes ? (
+                        <div className="flex items-center gap-0.5 opacity-80 pr-1">
+                          {[2, 1, 3, 1, 2, 4, 1, 3, 2, 1, 2, 1, 4].map((bw, bi) => (
+                            <div
+                              key={bi}
+                              style={{
+                                width: `${bw}px`,
+                                height: `${Math.max(5, Math.round(config.fontSize * 0.75))}px`,
+                                backgroundColor: bi % 2 === 0 ? config.fontColor : 'transparent',
+                              }}
+                            />
+                          ))}
+                        </div>
+                      ) : <div />}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
