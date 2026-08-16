@@ -17,8 +17,8 @@ import {
   Clock,
   Layers
 } from 'lucide-react';
-import { FilmStripConfig, FrameData, FilmStripProject } from '../types';
-import { exportProjectAsZip, exportProjectAsJson, importProjectFromFile } from '../utils/projectArchive';
+import { FilmStripConfig, FrameData, FilmStripProject, PhotoPrintConfig } from '../types';
+import { exportProjectAsZip, exportProjectAsJson, importProjectFromFile, ProjectExportSettings } from '../utils/projectArchive';
 import { clearStorageState } from '../utils/storage';
 
 interface ProjectSaveLoadModalProps {
@@ -31,6 +31,7 @@ interface ProjectSaveLoadModalProps {
   onLoadProject: (project: FilmStripProject) => void;
   onResetToDefaults: () => void;
   lastAutoSavedTime: Date | null;
+  exportSettings?: ProjectExportSettings;
 }
 
 export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
@@ -43,6 +44,7 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
   onLoadProject,
   onResetToDefaults,
   lastAutoSavedTime,
+  exportSettings,
 }) => {
   const [activeTab, setActiveTab] = useState<'save' | 'open' | 'storage'>('save');
   const [saveFormat, setSaveFormat] = useState<'zip' | 'filmproj' | 'json'>('filmproj');
@@ -68,17 +70,17 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
       if (saveFormat === 'filmproj') {
         await exportProjectAsZip(config, frames, projectName, 'filmproj', (percent, status) => {
           setProgress({ percent, status });
-        });
+        }, exportSettings);
         setSuccessMessage(`Exported "${projectName}.filmproj" successfully!`);
       } else if (saveFormat === 'zip') {
         await exportProjectAsZip(config, frames, projectName, 'zip', (percent, status) => {
           setProgress({ percent, status });
-        });
+        }, exportSettings);
         setSuccessMessage(`Exported "${projectName}.zip" archive successfully!`);
       } else {
         await exportProjectAsJson(config, frames, projectName, (percent, status) => {
           setProgress({ percent, status });
-        });
+        }, exportSettings);
         setSuccessMessage(`Exported "${projectName}.filmjson" successfully!`);
       }
     } catch (err: any) {

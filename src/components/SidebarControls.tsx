@@ -20,7 +20,9 @@ import {
   EyeOff,
   Archive,
   FolderOpen,
-  HardDrive
+  HardDrive,
+  Printer,
+  Scissors
 } from 'lucide-react';
 import { FilmStripConfig, AspectRatioType, DEFAULT_CONFIG } from '../types';
 
@@ -1234,14 +1236,16 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
           )}
         </div>
 
-        <button
-          id="btn-export-film-strip-sidebar"
-          onClick={onOpenExportModal}
-          className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-[0.99] transition-all cursor-pointer"
-        >
-          <Download className="w-4.5 h-4.5" />
-          Export Film Strip
-        </button>
+        <div className="space-y-2">
+          <button
+            id="btn-export-film-strip-sidebar"
+            onClick={onOpenExportModal}
+            className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-[0.99] transition-all cursor-pointer"
+          >
+            <Printer className="w-4.5 h-4.5" />
+            <span>Export & 15×10cm Photo Print</span>
+          </button>
+        </div>
       </div>
     </aside>
   );

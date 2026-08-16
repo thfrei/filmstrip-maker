@@ -3,8 +3,10 @@ import {
   FilmStripConfig, 
   FrameData, 
   FilmStripProject,
+  PhotoPrintConfig,
   DEFAULT_CONFIG, 
-  DEFAULT_FILTERS 
+  DEFAULT_FILTERS,
+  DEFAULT_PHOTO_PRINT_CONFIG
 } from './types';
 import { SidebarControls } from './components/SidebarControls';
 import { FilmStripPreview } from './components/FilmStripPreview';
@@ -18,6 +20,14 @@ export default function App() {
   const [projectName, setProjectName] = useState<string>('Cinema Film Reel');
   const [isLoadedFromStorage, setIsLoadedFromStorage] = useState<boolean>(false);
   const [lastAutoSavedTime, setLastAutoSavedTime] = useState<Date | null>(null);
+
+  // Persistent Export Settings State
+  const [exportMode, setExportMode] = useState<'photo_print' | 'single_strip'>('photo_print');
+  const [exportMultiplier, setExportMultiplier] = useState<number>(2);
+  const [exportFormat, setExportFormat] = useState<'image/png' | 'image/jpeg' | 'image/webp'>('image/jpeg');
+  const [exportQuality, setExportQuality] = useState<number>(0.95);
+  const [exportFilename, setExportFilename] = useState<string>('filmstrip-15x10cm-photo');
+  const [photoPrintConfig, setPhotoPrintConfig] = useState<PhotoPrintConfig>(DEFAULT_PHOTO_PRINT_CONFIG);
 
   // Initialize frames array with default empty data
   const [frames, setFrames] = useState<FrameData[]>(() => {
@@ -53,6 +63,14 @@ export default function App() {
           if (savedProject.updatedAt) {
             setLastAutoSavedTime(new Date(savedProject.updatedAt));
           }
+          if (savedProject.exportMode) setExportMode(savedProject.exportMode);
+          if (savedProject.exportMultiplier) setExportMultiplier(savedProject.exportMultiplier);
+          if (savedProject.exportFormat) setExportFormat(savedProject.exportFormat);
+          if (savedProject.exportQuality !== undefined) setExportQuality(savedProject.exportQuality);
+          if (savedProject.exportFilename) setExportFilename(savedProject.exportFilename);
+          if (savedProject.photoPrintConfig) {
+            setPhotoPrintConfig({ ...DEFAULT_PHOTO_PRINT_CONFIG, ...savedProject.photoPrintConfig });
+          }
         }
         setIsLoadedFromStorage(true);
       })
@@ -66,12 +84,19 @@ export default function App() {
     };
   }, []);
 
-  // Debounced auto-save to IndexedDB whenever config, frames or projectName changes
+  // Debounced auto-save to IndexedDB whenever config, frames, projectName or export settings change
   useEffect(() => {
     if (!isLoadedFromStorage) return;
 
     const timer = setTimeout(() => {
-      saveCurrentStateToStorage(config, frames, projectName)
+      saveCurrentStateToStorage(config, frames, projectName, {
+        exportMode,
+        exportMultiplier,
+        exportFormat,
+        exportQuality,
+        exportFilename,
+        photoPrintConfig,
+      })
         .then(() => {
           setLastAutoSavedTime(new Date());
         })
@@ -81,7 +106,7 @@ export default function App() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [config, frames, projectName, isLoadedFromStorage]);
+  }, [config, frames, projectName, exportMode, exportMultiplier, exportFormat, exportQuality, exportFilename, photoPrintConfig, isLoadedFromStorage]);
 
   // Sync frames array length when config.frameCount changes
   const handleUpdateConfig = useCallback((updated: Partial<FilmStripConfig>) => {
@@ -252,6 +277,24 @@ export default function App() {
     if (project.projectName) {
       setProjectName(project.projectName);
     }
+    if (project.exportMode) {
+      setExportMode(project.exportMode);
+    }
+    if (project.exportMultiplier) {
+      setExportMultiplier(project.exportMultiplier);
+    }
+    if (project.exportFormat) {
+      setExportFormat(project.exportFormat);
+    }
+    if (project.exportQuality !== undefined) {
+      setExportQuality(project.exportQuality);
+    }
+    if (project.exportFilename) {
+      setExportFilename(project.exportFilename);
+    }
+    if (project.photoPrintConfig) {
+      setPhotoPrintConfig({ ...DEFAULT_PHOTO_PRINT_CONFIG, ...project.photoPrintConfig });
+    }
     setSelectedFrameIndex(null);
     setLastAutoSavedTime(new Date());
   }, []);
@@ -260,6 +303,12 @@ export default function App() {
   const handleResetToDefaults = useCallback(() => {
     setConfig(DEFAULT_CONFIG);
     setProjectName('Untitled Film Reel');
+    setExportMode('photo_print');
+    setExportMultiplier(2);
+    setExportFormat('image/jpeg');
+    setExportQuality(0.95);
+    setExportFilename('filmstrip-15x10cm-photo');
+    setPhotoPrintConfig(DEFAULT_PHOTO_PRINT_CONFIG);
     setFrames(
       Array.from({ length: DEFAULT_CONFIG.frameCount }).map((_, i) => ({
         id: `frame-${i}-${Date.now()}`,
@@ -372,6 +421,18 @@ export default function App() {
         onClose={() => setIsExportModalOpen(false)}
         config={config}
         frames={frames}
+        exportMode={exportMode}
+        onUpdateExportMode={setExportMode}
+        photoPrintConfig={photoPrintConfig}
+        onUpdatePhotoPrintConfig={setPhotoPrintConfig}
+        multiplier={exportMultiplier}
+        onUpdateMultiplier={setExportMultiplier}
+        format={exportFormat}
+        onUpdateFormat={setExportFormat}
+        quality={exportQuality}
+        onUpdateQuality={setExportQuality}
+        filename={exportFilename}
+        onUpdateFilename={setExportFilename}
         defaultMultiplier={2}
       />
 
@@ -386,6 +447,14 @@ export default function App() {
         onLoadProject={handleLoadProject}
         onResetToDefaults={handleResetToDefaults}
         lastAutoSavedTime={lastAutoSavedTime}
+        exportSettings={{
+          exportMode,
+          exportMultiplier,
+          exportFormat,
+          exportQuality,
+          exportFilename,
+          photoPrintConfig,
+        }}
       />
     </div>
   );

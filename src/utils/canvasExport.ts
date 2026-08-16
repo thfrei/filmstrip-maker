@@ -1,4 +1,4 @@
-import { FilmStripConfig, FrameData, ExportOptions } from '../types';
+import { FilmStripConfig, FrameData, ExportOptions, PhotoPrintConfig } from '../types';
 
 /**
  * Loads an image from a URL with crossOrigin support and resolves HTMLImageElement
@@ -17,6 +17,39 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
     };
     img.src = url;
   });
+}
+
+/**
+ * Converts millimeters to pixels based on target DPI
+ */
+export function mmToPx(mm: number, dpi: number = 300): number {
+  return Math.round((mm / 25.4) * dpi);
+}
+
+/**
+ * Calculates accurate physical and pixel dimensions for 15x10cm (150x100mm) photo prints
+ */
+export function calculatePhotoPrintDimensions(printConfig: PhotoPrintConfig, scaleMultiplier: number = 1) {
+  const isPortrait = printConfig.orientation === 'portrait';
+  const widthMm = isPortrait ? 100 : 150;
+  const heightMm = isPortrait ? 150 : 100;
+  
+  const targetDpi = printConfig.dpi * scaleMultiplier;
+  const widthPx = mmToPx(widthMm, targetDpi);
+  const heightPx = mmToPx(heightMm, targetDpi);
+  const marginPx = mmToPx(printConfig.sheetMarginMm, targetDpi);
+  const gapPx = mmToPx(printConfig.stripGapMm, targetDpi);
+  
+  return {
+    widthMm,
+    heightMm,
+    widthPx,
+    heightPx,
+    marginPx,
+    gapPx,
+    dpi: targetDpi,
+    isPortrait,
+  };
 }
 
 /**
@@ -497,3 +530,262 @@ export async function copyFilmStripToClipboard(
     return false;
   }
 }
+
+/**
+ * Renders a full 15x10cm (or 10x15cm) photo print sheet with multiple film strips stacked underneath each other
+ */
+export async function renderPhotoPrintSheetToCanvas(
+  config: FilmStripConfig,
+  frames: FrameData[],
+  printConfig: PhotoPrintConfig,
+  previewScaleMultiplier: number = 1
+): Promise<HTMLCanvasElement> {
+  const dims = calculatePhotoPrintDimensions(printConfig, previewScaleMultiplier);
+  const scale = previewScaleMultiplier;
+  
+  const canvas = document.createElement('canvas');
+  canvas.width = dims.widthPx;
+  canvas.height = dims.heightPx;
+  
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) throw new Error('Could not get 2D canvas context for photo print');
+  
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  
+  // 1. Fill Sheet Background (e.g. Pure White for standard 15x10cm photo print card, or Black/Slate)
+  if (printConfig.sheetBgColor && printConfig.sheetBgColor !== 'transparent') {
+    ctx.fillStyle = printConfig.sheetBgColor;
+    ctx.fillRect(0, 0, dims.widthPx, dims.heightPx);
+  } else {
+    ctx.clearRect(0, 0, dims.widthPx, dims.heightPx);
+  }
+  
+  // 2. Compute Stacking Geometry
+  const stripCount = Math.max(1, Math.min(6, printConfig.stripCount));
+  const availWidth = dims.widthPx - (dims.marginPx * 2);
+  const totalGaps = (stripCount - 1) * dims.gapPx;
+  const availHeight = dims.heightPx - (dims.marginPx * 2) - totalGaps;
+  const singleStripMaxHeight = Math.max(20, availHeight / stripCount);
+  
+  // 3. Render Each Strip Row
+  for (let r = 0; r < stripCount; r++) {
+    let rowFrames: FrameData[] = [];
+    let rowFramesCount = config.frameCount;
+    let rowStartNumber = config.startNumber;
+    
+    if (printConfig.distributionMode === 'duplicate') {
+      // Duplicate exact same film strip
+      rowFrames = frames.slice(0, config.frameCount);
+      rowFramesCount = config.frameCount;
+      rowStartNumber = config.startNumber;
+    } else {
+      // Split frames across stacked strips
+      const framesPerRow = Math.ceil(config.frameCount / stripCount);
+      const startIdx = r * framesPerRow;
+      const endIdx = Math.min(config.frameCount, startIdx + framesPerRow);
+      
+      rowFrames = frames.slice(startIdx, endIdx);
+      rowFramesCount = Math.max(1, endIdx - startIdx);
+      rowStartNumber = config.startNumber + startIdx;
+      
+      // If we don't have enough frames for this row, fill with empty frame items
+      while (rowFrames.length < rowFramesCount) {
+        rowFrames.push({
+          id: `row-${r}-frame-${rowFrames.length}`,
+          imageUrl: null,
+          panX: 0,
+          panY: 0,
+          zoom: 1,
+          rotation: 0,
+          flipH: false,
+          flipV: false,
+          filters: { brightness: 100, contrast: 100, saturation: 100, sepia: 0, grayscale: 0, vintageWarmth: 0 },
+        });
+      }
+    }
+    
+    const rowStripConfig: FilmStripConfig = {
+      ...config,
+      frameCount: rowFramesCount,
+      startNumber: rowStartNumber,
+    };
+    
+    // Geometry at 1x to calculate scale factor
+    const geo1x = calculateFilmStripGeometry(rowStripConfig, 1);
+    
+    // Calculate uniform scale to fit neatly in slot
+    const scaleW = availWidth / geo1x.filmWidth;
+    const scaleH = singleStripMaxHeight / geo1x.filmHeight;
+    const fitScale = Math.min(scaleW, scaleH);
+    
+    // Render individual strip to its own canvas
+    const stripCanvas = await renderFilmStripToCanvas(rowStripConfig, rowFrames, fitScale);
+    
+    // Center the strip inside its slot (supports negative margins for bleed)
+    const slotY = dims.marginPx + (r * (singleStripMaxHeight + dims.gapPx));
+    const stripX = dims.marginPx + ((availWidth - stripCanvas.width) / 2);
+    const stripY = slotY + ((singleStripMaxHeight - stripCanvas.height) / 2);
+    
+    // Draw subtle drop shadow behind the celluloid film strip on light paper only if positive margins and gaps exist
+    if (printConfig.sheetBgColor && printConfig.sheetBgColor.toLowerCase() === '#ffffff' && dims.marginPx >= 3 && dims.gapPx >= 2) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+      ctx.shadowBlur = Math.max(2, 4 * scale);
+      ctx.shadowOffsetY = Math.max(1, 2 * scale);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(stripX, stripY, stripCanvas.width, stripCanvas.height);
+      ctx.restore();
+    }
+    
+    ctx.drawImage(stripCanvas, stripX, stripY);
+  }
+  
+  // 4. Render Photo Print Cut Guides & Trim Marks
+  if (printConfig.showCutGuides) {
+    const isDarkSheet = printConfig.sheetBgColor === '#000000' || printConfig.sheetBgColor === '#18181b';
+    const guideColor = isDarkSheet ? 'rgba(255, 255, 255, 0.4)' : 'rgba(100, 116, 139, 0.6)';
+    const textColor = isDarkSheet ? 'rgba(255, 255, 255, 0.7)' : 'rgba(71, 85, 105, 0.8)';
+    
+    ctx.save();
+    ctx.strokeStyle = guideColor;
+    ctx.lineWidth = Math.max(1, 1 * scale);
+    
+    // Inter-strip cut dashed lines
+    if (stripCount > 1 && dims.gapPx > 0) {
+      ctx.setLineDash([Math.max(3, 5 * scale), Math.max(3, 4 * scale)]);
+      
+      for (let r = 1; r < stripCount; r++) {
+        const cutY = dims.marginPx + (r * singleStripMaxHeight) + ((r - 0.5) * dims.gapPx);
+        
+        ctx.beginPath();
+        ctx.moveTo(2 * scale, cutY);
+        ctx.lineTo(dims.widthPx - 2 * scale, cutY);
+        ctx.stroke();
+        
+        // Small scissor mark or trim indicator
+        ctx.font = `${Math.max(9, Math.round(10 * scale))}px monospace`;
+        ctx.fillStyle = textColor;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('✂', Math.max(2, 3 * scale), cutY - (1 * scale));
+        
+        ctx.textAlign = 'right';
+        ctx.fillText('✂', dims.widthPx - Math.max(2, 3 * scale), cutY - (1 * scale));
+      }
+    }
+    
+    // 4 Corner Crop Tick Marks (L-marks 4mm from edges)
+    ctx.setLineDash([]);
+    const tickLen = Math.max(4, mmToPx(3.5, dims.dpi));
+    const m = Math.max(2, dims.marginPx);
+    
+    // Top-Left
+    ctx.beginPath();
+    ctx.moveTo(m, 0); ctx.lineTo(m, tickLen);
+    ctx.moveTo(0, m); ctx.lineTo(tickLen, m);
+    // Top-Right
+    ctx.moveTo(dims.widthPx - m, 0); ctx.lineTo(dims.widthPx - m, tickLen);
+    ctx.moveTo(dims.widthPx, m); ctx.lineTo(dims.widthPx - tickLen, m);
+    // Bottom-Left
+    ctx.moveTo(m, dims.heightPx); ctx.lineTo(m, dims.heightPx - tickLen);
+    ctx.moveTo(0, dims.heightPx - m); ctx.lineTo(tickLen, dims.heightPx - m);
+    // Bottom-Right
+    ctx.moveTo(dims.widthPx - m, dims.heightPx); ctx.lineTo(dims.widthPx - m, dims.heightPx - tickLen);
+    ctx.moveTo(dims.widthPx, dims.heightPx - m); ctx.lineTo(dims.widthPx - tickLen, dims.heightPx - m);
+    ctx.stroke();
+    
+    // Small discrete 15x10cm print spec label in the corner margin
+    if (dims.marginPx >= 8 * scale) {
+      ctx.font = `600 ${Math.max(7, Math.round(8 * scale))}px 'JetBrains Mono', monospace`;
+      ctx.fillStyle = textColor;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(
+        `15×10cm PHOTO PRINT • ${dims.dpi} DPI • ${stripCount} ${stripCount === 1 ? 'STRIP' : 'STRIPS'}`,
+        dims.widthPx - dims.marginPx,
+        dims.heightPx - Math.max(2, 2 * scale)
+      );
+    }
+    
+    ctx.restore();
+  }
+  
+  return canvas;
+}
+
+/**
+ * Exports 15x10cm Photo Print Sheet to File
+ */
+export async function exportPhotoPrintSheet(
+  config: FilmStripConfig,
+  frames: FrameData[],
+  printConfig: PhotoPrintConfig,
+  options: ExportOptions
+): Promise<{ blob: Blob; dataUrl: string; width: number; height: number }> {
+  const canvas = await renderPhotoPrintSheetToCanvas(config, frames, printConfig, 1);
+  
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error('Failed to generate 15x10cm photo print blob'));
+          return;
+        }
+        
+        const dataUrl = canvas.toDataURL(options.format, options.quality);
+        const link = document.createElement('a');
+        const extension = options.format === 'image/jpeg' ? 'jpg' : options.format === 'image/webp' ? 'webp' : 'png';
+        const timestamp = new Date().toISOString().slice(0, 10);
+        
+        link.download = options.filename || `filmstrip-15x10cm-photo-${printConfig.dpi}dpi-${printConfig.stripCount}strips-${timestamp}.${extension}`;
+        link.href = URL.createObjectURL(blob);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        resolve({
+          blob,
+          dataUrl,
+          width: canvas.width,
+          height: canvas.height,
+        });
+      },
+      options.format,
+      options.quality
+    );
+  });
+}
+
+/**
+ * Copies 15x10cm Photo Print Sheet to Clipboard
+ */
+export async function copyPhotoPrintSheetToClipboard(
+  config: FilmStripConfig,
+  frames: FrameData[],
+  printConfig: PhotoPrintConfig
+): Promise<boolean> {
+  try {
+    const canvas = await renderPhotoPrintSheetToCanvas(config, frames, printConfig, 1);
+    return new Promise((resolve) => {
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          resolve(false);
+          return;
+        }
+        try {
+          const item = new ClipboardItem({ 'image/png': blob });
+          await navigator.clipboard.write([item]);
+          resolve(true);
+        } catch (err) {
+          console.warn('Clipboard write failed for photo print:', err);
+          resolve(false);
+        }
+      }, 'image/png');
+    });
+  } catch (err) {
+    console.error('Failed to copy photo print to clipboard:', err);
+    return false;
+  }
+}
+

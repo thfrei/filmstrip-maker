@@ -1,4 +1,4 @@
-import { FilmStripConfig, FrameData, FilmStripProject, DEFAULT_CONFIG, PROJECT_VERSION } from '../types';
+import { FilmStripConfig, FrameData, FilmStripProject, DEFAULT_CONFIG, PROJECT_VERSION, PhotoPrintConfig } from '../types';
 
 const DB_NAME = 'CinemaFilmStripDB';
 const DB_VERSION = 1;
@@ -40,7 +40,15 @@ function openDB(): Promise<IDBDatabase> {
 export async function saveCurrentStateToStorage(
   config: FilmStripConfig,
   frames: FrameData[],
-  projectName: string = 'Untitled Film Strip'
+  projectName: string = 'Untitled Film Strip',
+  exportSettings?: {
+    exportMode?: 'photo_print' | 'single_strip';
+    exportMultiplier?: number;
+    exportFormat?: 'image/png' | 'image/jpeg' | 'image/webp';
+    exportQuality?: number;
+    exportFilename?: string;
+    photoPrintConfig?: PhotoPrintConfig;
+  }
 ): Promise<void> {
   try {
     const db = await openDB();
@@ -51,6 +59,12 @@ export async function saveCurrentStateToStorage(
       updatedAt: new Date().toISOString(),
       config,
       frames,
+      exportMode: exportSettings?.exportMode,
+      exportMultiplier: exportSettings?.exportMultiplier,
+      exportFormat: exportSettings?.exportFormat,
+      exportQuality: exportSettings?.exportQuality,
+      exportFilename: exportSettings?.exportFilename,
+      photoPrintConfig: exportSettings?.photoPrintConfig,
     };
 
     return new Promise((resolve, reject) => {

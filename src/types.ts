@@ -73,6 +73,36 @@ export interface ExportOptions {
   filename: string;
 }
 
+export type PrintOrientation = 'landscape' | 'portrait';
+export type FrameDistributionMode = 'split' | 'duplicate';
+export type PrintDPI = 150 | 300 | 600;
+
+export interface PhotoPrintConfig {
+  enabled: boolean;
+  orientation: PrintOrientation; // 'landscape' (15x10cm) or 'portrait' (10x15cm)
+  dpi: PrintDPI;                 // 150, 300, 600
+  stripCount: number;            // Number of film strips underneath each other (1 to 6)
+  distributionMode: FrameDistributionMode; // 'split' frames across strips or 'duplicate' identical strip
+  sheetBgColor: string;          // '#ffffff', '#000000', '#18181b', etc.
+  sheetMarginMm: number;         // 0 to 20 mm
+  stripGapMm: number;            // 0 to 20 mm
+  showCutGuides: boolean;        // Scissor/trim lines and crop ticks
+  fitMode: 'fit-width' | 'fit-proportional';
+}
+
+export const DEFAULT_PHOTO_PRINT_CONFIG: PhotoPrintConfig = {
+  enabled: false,
+  orientation: 'landscape',
+  dpi: 300,
+  stripCount: 2,
+  distributionMode: 'duplicate',
+  sheetBgColor: '#ffffff',
+  sheetMarginMm: 0,
+  stripGapMm: 0,
+  showCutGuides: false,
+  fitMode: 'fit-width',
+};
+
 export interface FilmStripProject {
   version: string;
   projectName: string;
@@ -80,6 +110,12 @@ export interface FilmStripProject {
   updatedAt: string;
   config: FilmStripConfig;
   frames: FrameData[];
+  exportMode?: 'photo_print' | 'single_strip';
+  exportMultiplier?: number;
+  exportFormat?: 'image/png' | 'image/jpeg' | 'image/webp';
+  exportQuality?: number;
+  exportFilename?: string;
+  photoPrintConfig?: PhotoPrintConfig;
 }
 
 export const PROJECT_VERSION = '1.0.0';

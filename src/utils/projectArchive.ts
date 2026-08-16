@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { FilmStripConfig, FrameData, FilmStripProject, PROJECT_VERSION } from '../types';
+import { FilmStripConfig, FrameData, FilmStripProject, PROJECT_VERSION, PhotoPrintConfig } from '../types';
 
 /**
  * Converts a data URL, blob URL or remote URL to an ArrayBuffer and mimeType
@@ -40,6 +40,15 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+export interface ProjectExportSettings {
+  exportMode?: 'photo_print' | 'single_strip';
+  exportMultiplier?: number;
+  exportFormat?: 'image/png' | 'image/jpeg' | 'image/webp';
+  exportQuality?: number;
+  exportFilename?: string;
+  photoPrintConfig?: PhotoPrintConfig;
+}
+
 /**
  * Exports complete project (settings + binary image assets) as a compressed ZIP file (.filmproj or .zip)
  */
@@ -48,7 +57,8 @@ export async function exportProjectAsZip(
   frames: FrameData[],
   projectName: string = 'cinema_filmstrip_project',
   fileExtension: 'filmproj' | 'zip' = 'filmproj',
-  onProgress?: (percent: number, status: string) => void
+  onProgress?: (percent: number, status: string) => void,
+  exportSettings?: ProjectExportSettings
 ): Promise<void> {
   if (onProgress) onProgress(10, 'Initializing zip archive...');
   const zip = new JSZip();
@@ -98,6 +108,12 @@ export async function exportProjectAsZip(
     updatedAt: new Date().toISOString(),
     config,
     frames: projectFramesMeta,
+    exportMode: exportSettings?.exportMode,
+    exportMultiplier: exportSettings?.exportMultiplier,
+    exportFormat: exportSettings?.exportFormat,
+    exportQuality: exportSettings?.exportQuality,
+    exportFilename: exportSettings?.exportFilename,
+    photoPrintConfig: exportSettings?.photoPrintConfig,
   };
 
   zip.file('project.json', JSON.stringify(manifest, null, 2));
@@ -110,7 +126,7 @@ Created: ${new Date().toLocaleString()}
 Frames: ${frames.length}
 
 This archive contains:
-- project.json: Full strip styling parameters, sprockets, fonts, frame layouts, filters, and pan/zoom transforms.
+- project.json: Full strip styling parameters, sprockets, fonts, frame layouts, filters, pan/zoom transforms, and 15x10cm photo print parameters.
 - assets/: High-resolution image files for each frame.
 
 You can drag and drop this .${fileExtension} file directly into the Cinema Film Strip Generator to reopen and edit your project anytime!
@@ -155,7 +171,8 @@ export async function exportProjectAsJson(
   config: FilmStripConfig,
   frames: FrameData[],
   projectName: string = 'cinema_filmstrip_project',
-  onProgress?: (percent: number, status: string) => void
+  onProgress?: (percent: number, status: string) => void,
+  exportSettings?: ProjectExportSettings
 ): Promise<void> {
   if (onProgress) onProgress(20, 'Preparing JSON project payload...');
 
@@ -195,6 +212,12 @@ export async function exportProjectAsJson(
     updatedAt: new Date().toISOString(),
     config,
     frames: serializedFrames,
+    exportMode: exportSettings?.exportMode,
+    exportMultiplier: exportSettings?.exportMultiplier,
+    exportFormat: exportSettings?.exportFormat,
+    exportQuality: exportSettings?.exportQuality,
+    exportFilename: exportSettings?.exportFilename,
+    photoPrintConfig: exportSettings?.photoPrintConfig,
   };
 
   if (onProgress) onProgress(90, 'Generating JSON download...');
@@ -300,6 +323,12 @@ export async function importProjectFromFile(
       updatedAt: new Date().toISOString(),
       config: parsedManifest.config,
       frames: reconstructedFrames,
+      exportMode: parsedManifest.exportMode,
+      exportMultiplier: parsedManifest.exportMultiplier,
+      exportFormat: parsedManifest.exportFormat,
+      exportQuality: parsedManifest.exportQuality,
+      exportFilename: parsedManifest.exportFilename,
+      photoPrintConfig: parsedManifest.photoPrintConfig,
     };
   }
 
@@ -321,5 +350,11 @@ export async function importProjectFromFile(
     updatedAt: new Date().toISOString(),
     config: parsed.config,
     frames: parsed.frames,
+    exportMode: parsed.exportMode,
+    exportMultiplier: parsed.exportMultiplier,
+    exportFormat: parsed.exportFormat,
+    exportQuality: parsed.exportQuality,
+    exportFilename: parsed.exportFilename,
+    photoPrintConfig: parsed.photoPrintConfig,
   };
 }
