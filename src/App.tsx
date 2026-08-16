@@ -45,7 +45,7 @@ export default function App() {
       .then((savedProject) => {
         if (!isMounted) return;
         if (savedProject && savedProject.config && Array.isArray(savedProject.frames) && savedProject.frames.length > 0) {
-          setConfig(savedProject.config);
+          setConfig({ ...DEFAULT_CONFIG, ...savedProject.config });
           setFrames(savedProject.frames);
           if (savedProject.projectName) {
             setProjectName(savedProject.projectName);
@@ -156,6 +156,21 @@ export default function App() {
     reader.readAsDataURL(file);
   }, [handleUpdateFrame]);
 
+  // Move / Swap frame position left or right
+  const handleMoveFrame = useCallback((fromIndex: number, direction: 'left' | 'right') => {
+    const toIndex = direction === 'left' ? fromIndex - 1 : fromIndex + 1;
+    if (toIndex < 0 || toIndex >= frames.length) return;
+
+    setFrames((prev) => {
+      const next = [...prev];
+      const temp = next[fromIndex];
+      next[fromIndex] = next[toIndex];
+      next[toIndex] = temp;
+      return next;
+    });
+    setSelectedFrameIndex(toIndex);
+  }, [frames.length]);
+
   // Remove image from frame
   const handleRemoveImageFromFrame = useCallback((index: number) => {
     handleUpdateFrame(index, {
@@ -229,7 +244,7 @@ export default function App() {
   // Full Project Load handler
   const handleLoadProject = useCallback((project: FilmStripProject) => {
     if (project.config) {
-      setConfig(project.config);
+      setConfig({ ...DEFAULT_CONFIG, ...project.config });
     }
     if (Array.isArray(project.frames)) {
       setFrames(project.frames);
@@ -283,6 +298,14 @@ export default function App() {
         }
       } else if (
         selectedFrameIndex !== null &&
+        (e.altKey || (e.ctrlKey && e.shiftKey)) &&
+        (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+      ) {
+        // Alt + Arrow Left/Right swaps frame with adjacent frame
+        e.preventDefault();
+        handleMoveFrame(selectedFrameIndex, e.key === 'ArrowLeft' ? 'left' : 'right');
+      } else if (
+        selectedFrameIndex !== null &&
         frames[selectedFrameIndex]?.imageUrl &&
         ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)
       ) {
@@ -308,7 +331,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedFrameIndex, frames, config.frameCount, isExportModalOpen, isProjectModalOpen, handleRemoveImageFromFrame, handleUpdateFrame]);
+  }, [selectedFrameIndex, frames, config.frameCount, isExportModalOpen, isProjectModalOpen, handleRemoveImageFromFrame, handleUpdateFrame, handleMoveFrame]);
 
   const filledFramesCount = frames.filter((f) => !!f.imageUrl).length;
 
@@ -338,6 +361,7 @@ export default function App() {
         onUpdateFrame={handleUpdateFrame}
         onUploadImageForFrame={handleUploadImageForFrame}
         onRemoveImageFromFrame={handleRemoveImageFromFrame}
+        onMoveFrame={handleMoveFrame}
         onOpenProjectModal={() => setIsProjectModalOpen(true)}
         onOpenExportModal={() => setIsExportModalOpen(true)}
       />

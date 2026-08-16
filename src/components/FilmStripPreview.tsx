@@ -17,7 +17,9 @@ import {
   Crosshair,
   Hand,
   Archive,
-  Download
+  Download,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
 import { FilmStripConfig, FrameData } from '../types';
 import { calculateFilmStripGeometry } from '../utils/canvasExport';
@@ -31,6 +33,7 @@ interface FilmStripPreviewProps {
   onUpdateFrame: (index: number, data: Partial<FrameData>) => void;
   onUploadImageForFrame: (index: number, file: File) => void;
   onRemoveImageFromFrame: (index: number) => void;
+  onMoveFrame?: (fromIndex: number, direction: 'left' | 'right') => void;
   onOpenProjectModal?: () => void;
   onOpenExportModal?: () => void;
 }
@@ -43,6 +46,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
   onUpdateFrame,
   onUploadImageForFrame,
   onRemoveImageFromFrame,
+  onMoveFrame,
   onOpenProjectModal,
   onOpenExportModal,
 }) => {
@@ -592,7 +596,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                       <div
                         className={`absolute left-0 right-0 flex items-center justify-between text-center pointer-events-none ${fontFamilyClass}`}
                         style={{
-                          top: `-${geo.headerHeight - topSprocketY - config.sprocketHeight + 6}px`,
+                          top: `-${Math.round((geo.frameMargin / 2) + (config.fontSize * 0.55))}px`,
                           color: config.fontColor,
                           fontSize: `${config.fontSize}px`,
                         }}
@@ -692,10 +696,45 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
 
                           {/* Quick selection indicators on frame */}
                           {isSelected && (
-                            <div className="absolute top-2 left-2 bg-amber-500/90 text-zinc-950 text-[10px] font-bold px-1.5 py-0.5 rounded shadow pointer-events-none flex items-center gap-1 font-mono">
-                              <Move className="w-2.5 h-2.5" />
-                              PAN / ZOOM
-                            </div>
+                            <>
+                              <div className="absolute top-2 left-2 bg-amber-500/90 text-zinc-950 text-[10px] font-bold px-1.5 py-0.5 rounded shadow pointer-events-none flex items-center gap-1 font-mono z-20">
+                                <Move className="w-2.5 h-2.5" />
+                                FRAME #{index + 1}
+                              </div>
+
+                              {/* Quick Move / Swap Buttons directly on frame */}
+                              <div 
+                                className="absolute top-2 right-2 flex items-center gap-1 z-20"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {index > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onMoveFrame?.(index, 'left');
+                                    }}
+                                    title={`Move Left / Swap with Frame #${index} (Alt+Left)`}
+                                    className="p-1 bg-zinc-900/90 hover:bg-amber-500 text-zinc-300 hover:text-zinc-950 rounded shadow border border-zinc-700/80 transition-all hover:scale-105"
+                                  >
+                                    <ArrowLeft className="w-3 h-3" />
+                                  </button>
+                                )}
+                                {index < config.frameCount - 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onMoveFrame?.(index, 'right');
+                                    }}
+                                    title={`Move Right / Swap with Frame #${index + 2} (Alt+Right)`}
+                                    className="p-1 bg-zinc-900/90 hover:bg-amber-500 text-zinc-300 hover:text-zinc-950 rounded shadow border border-zinc-700/80 transition-all hover:scale-105"
+                                  >
+                                    <ArrowRight className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </>
                           )}
                         </div>
                       ) : (
@@ -723,7 +762,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                       <div
                         className={`absolute left-0 right-0 flex items-center justify-between pointer-events-none ${fontFamilyClass}`}
                         style={{
-                          bottom: `-${geo.footerHeight - (geo.filmHeight - geo.outerBorder - bottomSprocketY) + 6}px`,
+                          bottom: `-${Math.round((geo.frameMargin / 2) + (config.fontSize * 0.55))}px`,
                           color: config.fontColor,
                           fontSize: `${config.fontSize}px`,
                         }}
@@ -764,11 +803,13 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
           <FrameAdjuster
             frame={frames[selectedFrameIndex]}
             frameIndex={selectedFrameIndex}
+            totalFrames={config.frameCount}
             frameWidth={geo.frameWidth}
             frameHeight={geo.frameHeight}
             onUpdate={(updated) => onUpdateFrame(selectedFrameIndex, updated)}
             onRemoveImage={() => onRemoveImageFromFrame(selectedFrameIndex)}
             onReplaceImage={() => fileInputRefs.current[selectedFrameIndex]?.click()}
+            onMoveFrame={(dir) => onMoveFrame?.(selectedFrameIndex, dir)}
             onClose={() => onSelectFrame(null)}
           />
         </div>
@@ -806,7 +847,9 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
         </div>
 
         <div className="text-[11px] text-zinc-400 hidden md:flex items-center gap-3">
-          <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Arrow Keys</kbd> Move Image</span>
+          <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Arrow Keys</kbd> Nudge Image</span>
+          <span>•</span>
+          <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Alt + ←/→</kbd> Swap Frame</span>
           <span>•</span>
           <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Space + Drag</kbd> Pan Canvas</span>
           <span>•</span>

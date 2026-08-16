@@ -37,6 +37,7 @@ export interface FilmStripConfig {
   outerBorderWidth: number;     // Outer strip border (px)
   frameBorderWidth: number;     // Border around each frame photo (px)
   frameDividerWidth: number;    // Space between adjacent frames (px)
+  frameMargin: number;          // Distance between sprocket holes and frames (px)
   filmBgColor: string;          // Strip background / base color
   frameBorderColor: string;     // Border around individual frames
   sprocketFillColor: string;    // Sprocket hole fill color
@@ -98,9 +99,10 @@ export const DEFAULT_CONFIG: FilmStripConfig = {
   outerBorderWidth: 6,
   frameBorderWidth: 2,
   frameDividerWidth: 12,
-  filmBgColor: '#0a0a0c',
+  frameMargin: 12,
+  filmBgColor: '#000000',
   frameBorderColor: '#18181b',
-  sprocketFillColor: '#000000',
+  sprocketFillColor: '#ffffff',
   sprocketBorderColor: '#27272a',
   sprocketWidth: 16,
   sprocketHeight: 22,

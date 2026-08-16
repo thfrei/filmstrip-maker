@@ -54,12 +54,18 @@ export function calculateFilmStripGeometry(config: FilmStripConfig, multiplier: 
   // Outer borders
   const outerBorder = Math.round(config.outerBorderWidth * M);
   
-  // Header and footer heights for sprocket tracks & markings
-  const headerHeight = Math.max(38 * M, Math.round(filmHeight * 0.165));
+  // Sprocket track margin and dimensions
+  const sprocketMarginTop = Math.round((config.sprocketMarginTop ?? 8) * M);
+  const sprocketHeight = Math.round((config.sprocketHeight ?? 22) * M);
+  const frameMargin = Math.round((config.frameMargin ?? 12) * M);
+  
+  // Header and footer heights for sprocket tracks & markings:
+  // Edge border -> sprocketMarginTop -> sprocketHeight -> frameMargin (gap to frame)
+  const headerHeight = sprocketMarginTop + sprocketHeight + frameMargin;
   const footerHeight = headerHeight;
   
   // Frame height available
-  const frameHeight = Math.max(50, filmHeight - headerHeight - footerHeight - (outerBorder * 2));
+  const frameHeight = Math.max(40, filmHeight - headerHeight - footerHeight - (outerBorder * 2));
   
   // Aspect ratio calculation
   let aspect = 1.5; // default 3:2
@@ -73,7 +79,7 @@ export function calculateFilmStripGeometry(config: FilmStripConfig, multiplier: 
   
   const frameWidth = Math.round(frameHeight * aspect);
   const frameDivider = Math.round(config.frameDividerWidth * M);
-  const sideMargin = Math.round(Math.max(28 * M, frameDivider * 1.6));
+  const sideMargin = Math.round(Math.max(24 * M, frameDivider * 1.5));
   
   const totalFramesWidth = (config.frameCount * frameWidth) + ((config.frameCount - 1) * frameDivider);
   const filmWidth = (outerBorder * 2) + (sideMargin * 2) + totalFramesWidth;
@@ -90,6 +96,9 @@ export function calculateFilmStripGeometry(config: FilmStripConfig, multiplier: 
     frameDivider,
     sideMargin,
     aspect,
+    sprocketMarginTop,
+    sprocketHeight,
+    frameMargin,
   };
 }
 

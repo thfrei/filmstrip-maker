@@ -221,6 +221,17 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
                 />
               </div>
 
+              {/* Reassurance Banner */}
+              <div className="flex items-start gap-2.5 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-zinc-300">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-semibold text-emerald-300">100% Raw & Uncropped Photos Preserved</span>
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                    Browser storage and project archives save your <strong>full original uploaded photo files</strong> completely uncropped. Pan, zoom, and rotation are stored as non-destructive coordinates so you can freely re-pan or zoom out anytime.
+                  </p>
+                </div>
+              </div>
+
               {/* Format Options */}
               <div className="space-y-2">
                 <label className="text-xs font-medium text-zinc-300">Choose Archive Format</label>
@@ -414,7 +425,7 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
                       Persistent Browser Storage Active
                     </h4>
                     <p className="text-[11px] text-zinc-400 mt-0.5 leading-relaxed">
-                      Your film strip settings, uploaded photos (up to multiple 5MB+ full resolution files), transforms, and filters are automatically cached in browser <strong>IndexedDB</strong>.
+                      Your film strip settings, raw full-resolution uploaded photos (100% uncropped original files), non-destructive pan/zoom coordinates, and color grades are automatically cached in browser <strong>IndexedDB</strong>.
                     </p>
                   </div>
                 </div>

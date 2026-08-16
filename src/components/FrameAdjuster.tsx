@@ -24,29 +24,34 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  ArrowLeftRight
 } from 'lucide-react';
 import { FrameData, DEFAULT_FILTERS } from '../types';
 
 interface FrameAdjusterProps {
   frame: FrameData;
   frameIndex: number;
+  totalFrames: number;
   frameWidth?: number;
   frameHeight?: number;
   onUpdate: (updated: Partial<FrameData>) => void;
   onRemoveImage: () => void;
   onReplaceImage: () => void;
+  onMoveFrame?: (direction: 'left' | 'right') => void;
   onClose: () => void;
 }
 
 export const FrameAdjuster: React.FC<FrameAdjusterProps> = ({
   frame,
   frameIndex,
+  totalFrames,
   frameWidth = 360,
   frameHeight = 240,
   onUpdate,
   onRemoveImage,
   onReplaceImage,
+  onMoveFrame,
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState<'transform' | 'filters' | 'text'>('transform');
@@ -235,18 +240,55 @@ export const FrameAdjuster: React.FC<FrameAdjusterProps> = ({
       className="bg-zinc-900/95 backdrop-blur-md border border-zinc-700/80 rounded-xl shadow-2xl p-3.5 text-zinc-100 max-w-lg w-full animate-in fade-in zoom-in-95 duration-150 z-30"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Header with Title, Frame Number, and Tabs */}
-      <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5 mb-3">
-        <div className="flex items-center gap-2">
-          <span className="bg-amber-500/20 text-amber-400 font-mono text-xs font-semibold px-2 py-0.5 rounded border border-amber-500/30">
+      {/* Header with Title, Frame Number, Move / Swap buttons, and Actions */}
+      <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5 mb-3 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="bg-amber-500/20 text-amber-400 font-mono text-xs font-semibold px-2 py-0.5 rounded border border-amber-500/30 shrink-0">
             FRAME #{frameIndex + 1}
           </span>
-          <span className="text-xs text-zinc-400 font-medium truncate max-w-[160px]">
+          <span className="text-xs text-zinc-400 font-medium truncate max-w-[120px]">
             {frame.imageName || 'Selected Frame'}
           </span>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          {/* Quick Header Swap Buttons */}
+          <div className="flex items-center bg-zinc-950/80 p-0.5 rounded-lg border border-zinc-800">
+            <button
+              id={`btn-header-move-left-${frameIndex}`}
+              type="button"
+              onClick={() => onMoveFrame?.('left')}
+              disabled={frameIndex <= 0}
+              title={frameIndex > 0 ? `Move Left & Swap with Frame #${frameIndex} (Alt+Left)` : 'Already first frame'}
+              className={`p-1.5 rounded transition-colors flex items-center gap-1 text-xs ${
+                frameIndex > 0
+                  ? 'hover:bg-zinc-800 text-zinc-300 hover:text-amber-400 cursor-pointer active:scale-95'
+                  : 'text-zinc-600 cursor-not-allowed opacity-40'
+              }`}
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-medium hidden sm:inline">Swap Left</span>
+            </button>
+            <div className="w-[1px] h-3.5 bg-zinc-800" />
+            <button
+              id={`btn-header-move-right-${frameIndex}`}
+              type="button"
+              onClick={() => onMoveFrame?.('right')}
+              disabled={frameIndex >= totalFrames - 1}
+              title={frameIndex < totalFrames - 1 ? `Move Right & Swap with Frame #${frameIndex + 2} (Alt+Right)` : 'Already last frame'}
+              className={`p-1.5 rounded transition-colors flex items-center gap-1 text-xs ${
+                frameIndex < totalFrames - 1
+                  ? 'hover:bg-zinc-800 text-zinc-300 hover:text-amber-400 cursor-pointer active:scale-95'
+                  : 'text-zinc-600 cursor-not-allowed opacity-40'
+              }`}
+            >
+              <span className="text-[11px] font-medium hidden sm:inline">Swap Right</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="w-[1px] h-4 bg-zinc-800 mx-0.5" />
+
           <button
             id={`btn-replace-image-${frameIndex}`}
             onClick={onReplaceImage}
@@ -627,9 +669,56 @@ export const FrameAdjuster: React.FC<FrameAdjusterProps> = ({
             </button>
           </div>
 
+          {/* Reorder / Swap Frame Position */}
+          <div className="bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+                <ArrowLeftRight className="w-3.5 h-3.5 text-amber-400" />
+                Move Frame Position (Swap)
+              </span>
+              <span className="text-[11px] text-zinc-400 font-mono">
+                Frame #{frameIndex + 1} of {totalFrames}
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                id={`btn-tab-move-left-${frameIndex}`}
+                type="button"
+                onClick={() => onMoveFrame?.('left')}
+                disabled={frameIndex <= 0}
+                className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                  frameIndex > 0
+                    ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white border-zinc-700 hover:border-amber-500/50 cursor-pointer active:scale-95 shadow-sm'
+                    : 'bg-zinc-900/40 border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'
+                }`}
+                title={frameIndex > 0 ? `Swap with Frame #${frameIndex} (Alt+Left)` : 'Already first frame'}
+              >
+                <ArrowLeft className="w-4 h-4 text-amber-400" />
+                <span>Move Left {frameIndex > 0 ? `(#${frameIndex})` : ''}</span>
+              </button>
+
+              <button
+                id={`btn-tab-move-right-${frameIndex}`}
+                type="button"
+                onClick={() => onMoveFrame?.('right')}
+                disabled={frameIndex >= totalFrames - 1}
+                className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                  frameIndex < totalFrames - 1
+                    ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white border-zinc-700 hover:border-amber-500/50 cursor-pointer active:scale-95 shadow-sm'
+                    : 'bg-zinc-900/40 border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'
+                }`}
+                title={frameIndex < totalFrames - 1 ? `Swap with Frame #${frameIndex + 2} (Alt+Right)` : 'Already last frame'}
+              >
+                <span>Move Right {frameIndex < totalFrames - 1 ? `(#${frameIndex + 2})` : ''}</span>
+                <ArrowRight className="w-4 h-4 text-amber-400" />
+              </button>
+            </div>
+          </div>
+
           <div className="text-[11px] text-zinc-400 bg-zinc-950/60 px-2.5 py-1.5 rounded border border-zinc-800/70 flex flex-col gap-0.5">
             <div className="flex items-center justify-between text-zinc-300">
-              <span>⌨️ <strong className="text-amber-400">Arrow keys</strong> nudge image (<kbd className="bg-zinc-800 px-1 rounded text-[10px]">Shift</kbd> for 20px)</span>
+              <span>⌨️ <strong className="text-amber-400">Arrow keys</strong> nudge image • <strong className="text-amber-400">Alt + Left/Right</strong> swaps frame</span>
             </div>
             <div className="text-zinc-500 text-[10px]">
               Hold <kbd className="bg-zinc-800 px-1 rounded text-[10px]">Space</kbd> + Drag to pan canvas. Hold <kbd className="bg-zinc-800 px-1 rounded text-[10px]">Ctrl</kbd> + Scroll to zoom canvas.

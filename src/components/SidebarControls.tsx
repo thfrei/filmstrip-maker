@@ -410,24 +410,35 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
           </button>
 
           {openSections.stripStyle && (
-            <div className="space-y-3 pt-1 animate-in fade-in duration-150">
-              {/* Outer Border & Divider Sliders */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <div className="flex justify-between text-zinc-400 text-[11px]">
-                    <span>Outer Border</span>
-                    <span className="font-mono text-zinc-300">{config.outerBorderWidth}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="18"
-                    value={config.outerBorderWidth}
-                    onChange={(e) => onUpdateConfig({ outerBorderWidth: parseInt(e.target.value, 10) })}
-                    className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                  />
+            <div className="space-y-3.5 pt-1 animate-in fade-in duration-150">
+              {/* Frame Margin (Sprocket Gap) - Prominent Slider */}
+              <div className="bg-amber-500/5 p-2.5 rounded-lg border border-amber-500/20 space-y-1.5">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="font-semibold text-amber-300 flex items-center gap-1">
+                    <span>Frame Margin (Sprocket Distance)</span>
+                  </span>
+                  <span className="font-mono text-amber-400 font-bold bg-zinc-900 px-2 py-0.5 rounded border border-amber-500/30">
+                    {config.frameMargin ?? 12}px
+                  </span>
                 </div>
+                <input
+                  id="slider-frame-margin"
+                  type="range"
+                  min="2"
+                  max="40"
+                  value={config.frameMargin ?? 12}
+                  onChange={(e) => onUpdateConfig({ frameMargin: parseInt(e.target.value, 10) })}
+                  className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                />
+                <div className="flex justify-between text-[9px] text-zinc-400">
+                  <span>Tight (2px)</span>
+                  <span>Standard (12px)</span>
+                  <span>Spacious (40px)</span>
+                </div>
+              </div>
 
+              {/* Outer Border, Frame Dividers & Frame Border */}
+              <div className="grid grid-cols-2 gap-2.5">
                 <div className="space-y-1">
                   <div className="flex justify-between text-zinc-400 text-[11px]">
                     <span>Frame Dividers</span>
@@ -436,9 +447,54 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
                   <input
                     type="range"
                     min="2"
-                    max="28"
+                    max="36"
                     value={config.frameDividerWidth}
                     onChange={(e) => onUpdateConfig({ frameDividerWidth: parseInt(e.target.value, 10) })}
+                    className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-zinc-400 text-[11px]">
+                    <span>Outer Border</span>
+                    <span className="font-mono text-zinc-300">{config.outerBorderWidth}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="24"
+                    value={config.outerBorderWidth}
+                    onChange={(e) => onUpdateConfig({ outerBorderWidth: parseInt(e.target.value, 10) })}
+                    className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-zinc-400 text-[11px]">
+                    <span>Frame Border Line</span>
+                    <span className="font-mono text-zinc-300">{config.frameBorderWidth}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="8"
+                    value={config.frameBorderWidth}
+                    onChange={(e) => onUpdateConfig({ frameBorderWidth: parseInt(e.target.value, 10) })}
+                    className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-zinc-400 text-[11px]">
+                    <span>Sprocket Edge Gap</span>
+                    <span className="font-mono text-zinc-300">{config.sprocketMarginTop}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="2"
+                    max="20"
+                    value={config.sprocketMarginTop}
+                    onChange={(e) => onUpdateConfig({ sprocketMarginTop: parseInt(e.target.value, 10) })}
                     className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
                   />
                 </div>
@@ -456,7 +512,7 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
                     <input
                       type="range"
                       min="10"
-                      max="26"
+                      max="28"
                       value={config.sprocketWidth}
                       onChange={(e) => onUpdateConfig({ sprocketWidth: parseInt(e.target.value, 10) })}
                       className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
@@ -469,7 +525,7 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
                     <input
                       type="range"
                       min="12"
-                      max="32"
+                      max="34"
                       value={config.sprocketHeight}
                       onChange={(e) => onUpdateConfig({ sprocketHeight: parseInt(e.target.value, 10) })}
                       className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
@@ -482,7 +538,7 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
                     <input
                       type="range"
                       min="0"
-                      max="8"
+                      max="10"
                       value={config.sprocketRadius}
                       onChange={(e) => onUpdateConfig({ sprocketRadius: parseInt(e.target.value, 10) })}
                       className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
@@ -511,61 +567,135 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
                 </div>
               </div>
 
-              {/* Color Scheme Picker */}
-              <div className="space-y-2">
+              {/* Sprocket Hole Fill Color */}
+              <div className="space-y-1.5 bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800">
                 <div className="flex justify-between items-center">
-                  <span className="text-zinc-400">Film Base Color</span>
+                  <span className="text-zinc-300 font-medium text-[11px]">Sprocket Hole Fill Color</span>
                   <div className="flex items-center gap-1.5">
                     <input
+                      id="input-sprocket-fill-color"
                       type="color"
-                      value={config.filmBgColor}
-                      onChange={(e) => onUpdateConfig({ filmBgColor: e.target.value })}
+                      value={config.sprocketFillColor === 'transparent' ? '#ffffff' : config.sprocketFillColor}
+                      onChange={(e) => onUpdateConfig({ sprocketFillColor: e.target.value })}
                       className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
                     />
-                    <span className="font-mono text-[10px] text-zinc-400 uppercase">{config.filmBgColor}</span>
+                    <span className="font-mono text-[10px] text-zinc-400 uppercase">
+                      {config.sprocketFillColor === 'transparent' ? 'TRANSPARENT' : config.sprocketFillColor}
+                    </span>
                   </div>
                 </div>
 
-                {/* Quick color swatches */}
-                <div className="flex gap-1.5">
+                {/* Quick Swatch Presets for Sprocket Hole Fill */}
+                <div className="grid grid-cols-4 gap-1.5 pt-1">
                   {[
-                    { color: '#0a0a0c', name: 'Kodak Black' },
-                    { color: '#18181b', name: 'Dark Zinc' },
-                    { color: '#0f172a', name: 'Cinema Slate' },
-                    { color: '#17120e', name: 'Vintage Sepia' },
-                    { color: '#1e1b18', name: 'Warm Charcoal' },
-                  ].map((c) => (
+                    { color: '#ffffff', label: 'White (Default)' },
+                    { color: '#000000', label: 'Black' },
+                    { color: '#18181b', label: 'Dark Zinc' },
+                    { color: '#fef3c7', label: 'Warm Glow' },
+                  ].map((s) => (
                     <button
-                      key={c.color}
-                      onClick={() => onUpdateConfig({ filmBgColor: c.color })}
-                      style={{ backgroundColor: c.color }}
-                      className={`flex-1 h-6 rounded-md border transition-transform ${
-                        config.filmBgColor.toLowerCase() === c.color.toLowerCase()
-                          ? 'ring-2 ring-amber-500 scale-105 border-zinc-400'
-                          : 'border-zinc-700 hover:scale-105'
+                      key={s.color}
+                      onClick={() => onUpdateConfig({ sprocketFillColor: s.color })}
+                      className={`px-1.5 py-1 text-[10px] rounded border flex items-center justify-center gap-1 font-medium transition-all ${
+                        config.sprocketFillColor.toLowerCase() === s.color.toLowerCase()
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-sm'
+                          : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
                       }`}
-                      title={c.name}
-                    />
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full border border-zinc-600 shrink-0"
+                        style={{ backgroundColor: s.color }}
+                      />
+                      <span className="truncate">{s.label}</span>
+                    </button>
                   ))}
                 </div>
               </div>
 
-              {/* Sprocket Hole Fill Color */}
-              <div className="flex justify-between items-center pt-1">
-                <span className="text-zinc-400">Sprocket Hole Fill</span>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="color"
-                    value={config.sprocketFillColor === 'transparent' ? '#000000' : config.sprocketFillColor}
-                    onChange={(e) => onUpdateConfig({ sprocketFillColor: e.target.value })}
-                    className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
-                  />
-                  <button
-                    onClick={() => onUpdateConfig({ sprocketFillColor: '#000000' })}
-                    className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 rounded text-[10px] text-zinc-300"
-                  >
-                    Pure Black
-                  </button>
+              {/* Color Scheme: Film Strip Background & Frame Border */}
+              <div className="space-y-2.5 bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-1.5">
+                    <Palette className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="text-zinc-200 font-medium text-[11px]">Film Strip Background Color</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      id="input-film-bg-color"
+                      type="color"
+                      value={config.filmBgColor}
+                      onChange={(e) => onUpdateConfig({ filmBgColor: e.target.value })}
+                      className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent"
+                      title="Choose custom background color"
+                    />
+                    <input
+                      type="text"
+                      value={config.filmBgColor.toUpperCase()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.startsWith('#') || val.length <= 7) {
+                          onUpdateConfig({ filmBgColor: val });
+                        }
+                      }}
+                      className="font-mono text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-700/80 rounded px-1.5 py-0.5 w-16 text-center uppercase focus:outline-none focus:border-amber-500"
+                    />
+                    {config.filmBgColor.toLowerCase() !== '#000000' && (
+                      <button
+                        type="button"
+                        onClick={() => onUpdateConfig({ filmBgColor: '#000000' })}
+                        title="Reset to default Black (#000000)"
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-amber-400 transition-colors"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Quick color swatches for Film Strip Background */}
+                <div className="grid grid-cols-4 gap-1.5 pt-0.5">
+                  {[
+                    { color: '#000000', label: 'Black (Default)' },
+                    { color: '#0a0a0c', label: 'Kodak Black' },
+                    { color: '#18181b', label: 'Dark Zinc' },
+                    { color: '#0f172a', label: 'Cinema Slate' },
+                    { color: '#17120e', label: 'Vintage Sepia' },
+                    { color: '#27272a', label: 'Charcoal' },
+                    { color: '#ffffff', label: 'Negative White' },
+                    { color: '#fef3c7', label: 'Amber Light' },
+                  ].map((c) => (
+                    <button
+                      key={c.color}
+                      type="button"
+                      onClick={() => onUpdateConfig({ filmBgColor: c.color })}
+                      className={`px-1.5 py-1 text-[10px] rounded border flex items-center justify-center gap-1 font-medium transition-all ${
+                        config.filmBgColor.toLowerCase() === c.color.toLowerCase()
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-sm'
+                          : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+                      }`}
+                      title={c.label}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full border border-zinc-600 shrink-0"
+                        style={{ backgroundColor: c.color }}
+                      />
+                      <span className="truncate">{c.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Frame Border Line Color */}
+                <div className="flex justify-between items-center pt-2 border-t border-zinc-850 text-[11px]">
+                  <span className="text-zinc-400 text-[10px]">Frame Border Line Color</span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="color"
+                      value={config.frameBorderColor}
+                      onChange={(e) => onUpdateConfig({ frameBorderColor: e.target.value })}
+                      className="w-4 h-4 rounded cursor-pointer border-0 bg-transparent"
+                    />
+                    <span className="font-mono text-[10px] text-zinc-400 uppercase">{config.frameBorderColor}</span>
+                  </div>
                 </div>
               </div>
             </div>
