@@ -1,0 +1,6 @@
+{
+  "name": "Cinema Film Strip Generator",
+  "description": "A customizable movie cinema film strip generator with interactive image adjustments, sprocket styling, and high-resolution canvas export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
