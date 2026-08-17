@@ -1,3 +1,5 @@
+!! Disclaimer: All this is vibe coded with Google Gemini ai studio !!
+
 # Cinema Film Strip Generator 🎞️
 
 An interactive, customizable cinema 35mm / 70mm film strip creator and high-resolution canvas exporter built with React 19, TypeScript, Tailwind CSS, and HTML5 Canvas.
