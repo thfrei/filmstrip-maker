@@ -11,6 +11,13 @@ Create authentic movie film strips, custom photo stories, and vintage celluloid 
 ## ✨ Features
 
 - **🎞️ Authentic Film Stocks & Presets**: Kodak Vision3 500T, Fujifilm Eterna 500, Ilford HP5 Plus Noir, CineStill 800T, Vintage Monochrome, and Clean Modern.
+- **🎬 Movie Frame Extractor & Multi-Thumb Timeline Scrubber**:
+  - Upload any video file (`.mp4`, `.webm`, `.mov`, `.mkv`) or generate an authentic 35mm cinema demo clip in 1 click.
+  - Video monitor preview window with play/pause, ±1 second, and frame-by-frame (1/30s) scrubbing.
+  - Full-width interactive timeline slider with precise timecode input (`MM:SS.ss`).
+  - Active frame marker rendered in **primary color** (amber/gold), with visible markers for all other frames along the video timeline.
+  - Live frame capture directly into the film strip as you scrub.
+  - One-click auto-distribute frames across the entire movie duration.
 - **📐 Flexible Frame Geometry & Aspect Ratios**: Choose from 3:2 (Classic 35mm), 16:9 (Widescreen), 4:3 (Academy Standard), 1:1 (Square), and 2.39:1 (Anamorphic Cinemascope), or define custom dimensions.
 - **🖼️ Non-Destructive Framing & Precision Transforms**:
   - Zoom from `0.2x` to `10.0x` with full preservation of the uncropped source image.

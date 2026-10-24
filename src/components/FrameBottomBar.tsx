@@ -23,9 +23,11 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Film
 } from 'lucide-react';
 import { FrameData, DEFAULT_FILTERS } from '../types';
+import { formatTimecode } from '../utils/videoExtractor';
 
 interface FrameBottomBarProps {
   frame: FrameData | null;
@@ -298,6 +300,17 @@ export const FrameBottomBar: React.FC<FrameBottomBarProps> = ({
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
+
+              {/* Movie Source Timestamp Tag */}
+              {typeof frame.videoTimestamp === 'number' && (
+                <div 
+                  className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 bg-black/60 text-amber-400 font-mono text-[10px] rounded border border-amber-500/30 font-medium"
+                  title={frame.sourceVideoName ? `Captured from ${frame.sourceVideoName} at ${formatTimecode(frame.videoTimestamp)}` : `Movie frame at ${formatTimecode(frame.videoTimestamp)}`}
+                >
+                  <Film className="w-3 h-3 text-amber-500" />
+                  <span>{formatTimecode(frame.videoTimestamp)}</span>
+                </div>
+              )}
 
               {/* Move/Swap Left/Right */}
               {onMoveFrame && totalFrames > 1 && (

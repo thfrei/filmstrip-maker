@@ -44,12 +44,14 @@ The application is a client-side React 19 single-page application (SPA) built wi
     │   ├── FrameAdjuster.tsx      # Legacy/secondary standalone frame adjuster component
     │   ├── SidebarControls.tsx    # Left sidebar for strip setup, aspect ratios, sprockets, presets
     │   ├── ExportModal.tsx        # High-res export modal (1x/2x/4x, PNG/JPEG/WebP, individual/strip)
-    │   └── ProjectSaveLoadModal.tsx # Project management, local storage, JSON/ZIP import & export
+    │   ├── ProjectSaveLoadModal.tsx # Project management, local storage, JSON/ZIP import & export
+    │   └── VideoTimelineDeck.tsx  # Movie frame extractor, preview monitor & multi-thumb timeline scrubber
     └── utils/
         ├── canvasExport.ts        # 2D Canvas mathematical renderer and exporter
         ├── projectArchive.ts      # Multi-frame ZIP packaging via JSZip
         ├── sampleImages.ts        # Curated vintage cinematic sample images
-        └── storage.ts             # LocalStorage persistence for projects and settings
+        ├── storage.ts             # LocalStorage persistence for projects and settings
+        └── videoExtractor.ts      # Video frame capture, timecode formatting & demo clip generator
 ```
 
 ---

@@ -35,6 +35,8 @@ interface SidebarControlsProps {
   onClearAllImages: () => void;
   onOpenExportModal: () => void;
   onOpenProjectModal: () => void;
+  onToggleMovieDeck?: () => void;
+  isVideoLoaded?: boolean;
   filledFramesCount: number;
   totalFramesCount: number;
   lastAutoSavedTime: Date | null;
@@ -49,6 +51,8 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
   onClearAllImages,
   onOpenExportModal,
   onOpenProjectModal,
+  onToggleMovieDeck,
+  isVideoLoaded,
   filledFramesCount,
   totalFramesCount,
   lastAutoSavedTime,
@@ -270,6 +274,21 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
             Batch Upload
           </button>
         </div>
+
+        {onToggleMovieDeck && (
+          <button
+            id="btn-sidebar-open-movie-deck"
+            onClick={onToggleMovieDeck}
+            className="w-full py-1.5 px-2.5 bg-gradient-to-r from-amber-500/15 to-amber-600/15 hover:from-amber-500/25 hover:to-amber-600/25 text-amber-300 rounded-lg text-xs font-semibold border border-amber-500/40 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm hover:border-amber-400"
+            title="Open video frame extractor deck with full-width timeline slider"
+          >
+            <Film className="w-3.5 h-3.5 text-amber-400" />
+            <span>🎬 Movie Frame Extractor</span>
+            {isVideoLoaded && (
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            )}
+          </button>
+        )}
 
         <button
           id="btn-save-load-project-quick"

@@ -26,6 +26,16 @@ export interface FrameData {
   filters: ImageFilterSettings;
   customTextTop?: string;
   customTextBottom?: string;
+  videoTimestamp?: number;     // Timestamp in seconds if captured from video
+  sourceVideoName?: string;    // Name of source video
+}
+
+export interface VideoSourceInfo {
+  url: string;
+  name: string;
+  duration: number;
+  width: number;
+  height: number;
 }
 
 export interface FilmStripConfig {

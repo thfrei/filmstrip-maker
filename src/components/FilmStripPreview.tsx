@@ -19,11 +19,14 @@ import {
   Archive,
   Download,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  Film
 } from 'lucide-react';
-import { FilmStripConfig, FrameData } from '../types';
+import { FilmStripConfig, FrameData, VideoSourceInfo } from '../types';
 import { calculateFilmStripGeometry } from '../utils/canvasExport';
 import { FrameBottomBar } from './FrameBottomBar';
+import { VideoTimelineDeck } from './VideoTimelineDeck';
+import { formatTimecode } from '../utils/videoExtractor';
 
 interface FilmStripPreviewProps {
   config: FilmStripConfig;
@@ -36,6 +39,18 @@ interface FilmStripPreviewProps {
   onMoveFrame?: (fromIndex: number, direction: 'left' | 'right') => void;
   onOpenProjectModal?: () => void;
   onOpenExportModal?: () => void;
+  videoSource: VideoSourceInfo | null;
+  onSetVideoSource: (source: VideoSourceInfo | null) => void;
+  isVideoDeckOpen: boolean;
+  onToggleVideoDeck: () => void;
+  onUpdateFrameFromVideo: (index: number, data: {
+    imageUrl: string;
+    imageNaturalWidth: number;
+    imageNaturalHeight: number;
+    videoTimestamp: number;
+    sourceVideoName: string;
+    imageName: string;
+  }) => void;
 }
 
 export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
@@ -49,6 +64,11 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
   onMoveFrame,
   onOpenProjectModal,
   onOpenExportModal,
+  videoSource,
+  onSetVideoSource,
+  isVideoDeckOpen,
+  onToggleVideoDeck,
+  onUpdateFrameFromVideo,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
@@ -398,8 +418,28 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
           </button>
         </div>
 
-        {/* Action Buttons: Save/Load Project & Export */}
+        {/* Action Buttons: Movie Deck, Save/Load Project & Export */}
         <div className="flex items-center gap-2">
+          <button
+            id="btn-preview-top-movie-deck"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleVideoDeck();
+            }}
+            className={`px-2.5 py-1 text-xs rounded-lg border flex items-center gap-1.5 transition-all font-medium cursor-pointer ${
+              isVideoDeckOpen
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm ring-1 ring-amber-500/30'
+                : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border-zinc-700/80 hover:text-white'
+            }`}
+            title="Toggle Movie Frame Extractor Deck (Full-width slider & video preview)"
+          >
+            <Film className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">Movie Reel Deck</span>
+            {videoSource && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            )}
+          </button>
+
           {onOpenProjectModal && (
             <button
               id="btn-preview-top-project"
@@ -758,6 +798,16 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                                   </button>
                                 )}
                               </div>
+                              {/* Movie Frame Timestamp Tag */}
+                              {typeof frameData.videoTimestamp === 'number' && (
+                                <div 
+                                  className="absolute bottom-2 left-2 bg-black/85 backdrop-blur-sm text-amber-400 border border-amber-500/40 text-[9px] font-mono px-1.5 py-0.5 rounded shadow pointer-events-none z-20 flex items-center gap-1"
+                                  title={`Movie Frame @ ${formatTimecode(frameData.videoTimestamp)}`}
+                                >
+                                  <Film className="w-2.5 h-2.5 text-amber-500" />
+                                  <span>{formatTimecode(frameData.videoTimestamp)}</span>
+                                </div>
+                              )}
                             </>
                           )}
                         </div>
@@ -873,6 +923,18 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Video Timeline Scrubber & Frame Extractor Deck */}
+      <VideoTimelineDeck
+        frames={frames}
+        selectedFrameIndex={selectedFrameIndex}
+        onSelectFrame={(idx) => onSelectFrame(idx)}
+        onUpdateFrameImage={(idx, data) => onUpdateFrameFromVideo(idx, data)}
+        videoSource={videoSource}
+        onSetVideoSource={onSetVideoSource}
+        isOpen={isVideoDeckOpen}
+        onToggleOpen={onToggleVideoDeck}
+      />
 
       {/* Status Bar: Active Frame Indicators & Keyboard Shortcuts */}
       <div 

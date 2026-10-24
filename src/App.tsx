@@ -4,6 +4,7 @@ import {
   FrameData, 
   FilmStripProject,
   PhotoPrintConfig,
+  VideoSourceInfo,
   DEFAULT_CONFIG, 
   DEFAULT_FILTERS,
   DEFAULT_PHOTO_PRINT_CONFIG
@@ -47,6 +48,10 @@ export default function App() {
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState<boolean>(false);
+
+  // Movie Frame Extractor Video Source state
+  const [videoSource, setVideoSource] = useState<VideoSourceInfo | null>(null);
+  const [isVideoDeckOpen, setIsVideoDeckOpen] = useState<boolean>(false);
 
   // Load saved state from IndexedDB across page reloads on initial mount
   useEffect(() => {
@@ -180,6 +185,43 @@ export default function App() {
     };
     reader.readAsDataURL(file);
   }, [handleUpdateFrame]);
+
+  // Update frame directly from video frame capture
+  const handleUpdateFrameFromVideo = useCallback(
+    (
+      index: number,
+      data: {
+        imageUrl: string;
+        imageNaturalWidth: number;
+        imageNaturalHeight: number;
+        videoTimestamp: number;
+        sourceVideoName: string;
+        imageName: string;
+      }
+    ) => {
+      handleUpdateFrame(index, {
+        imageUrl: data.imageUrl,
+        imageNaturalWidth: data.imageNaturalWidth,
+        imageNaturalHeight: data.imageNaturalHeight,
+        videoTimestamp: data.videoTimestamp,
+        sourceVideoName: data.sourceVideoName,
+        imageName: data.imageName,
+        panX: 0,
+        panY: 0,
+        zoom: 1,
+        rotation: 0,
+      });
+      setSelectedFrameIndex(index);
+    },
+    [handleUpdateFrame]
+  );
+
+  const handleSetVideoSource = useCallback((source: VideoSourceInfo | null) => {
+    setVideoSource(source);
+    if (source) {
+      setIsVideoDeckOpen(true);
+    }
+  }, []);
 
   // Move / Swap frame position left or right
   const handleMoveFrame = useCallback((fromIndex: number, direction: 'left' | 'right') => {
@@ -396,6 +438,8 @@ export default function App() {
         onClearAllImages={handleClearAllImages}
         onOpenExportModal={() => setIsExportModalOpen(true)}
         onOpenProjectModal={() => setIsProjectModalOpen(true)}
+        onToggleMovieDeck={() => setIsVideoDeckOpen((v) => !v)}
+        isVideoLoaded={!!videoSource}
         filledFramesCount={filledFramesCount}
         totalFramesCount={config.frameCount}
         lastAutoSavedTime={lastAutoSavedTime}
@@ -413,6 +457,11 @@ export default function App() {
         onMoveFrame={handleMoveFrame}
         onOpenProjectModal={() => setIsProjectModalOpen(true)}
         onOpenExportModal={() => setIsExportModalOpen(true)}
+        videoSource={videoSource}
+        onSetVideoSource={handleSetVideoSource}
+        isVideoDeckOpen={isVideoDeckOpen}
+        onToggleVideoDeck={() => setIsVideoDeckOpen((v) => !v)}
+        onUpdateFrameFromVideo={handleUpdateFrameFromVideo}
       />
 
       {/* High-Resolution Export Modal */}
