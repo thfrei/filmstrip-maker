@@ -1,7 +1,14 @@
-import { FilmStripConfig, FrameData, FilmStripProject, DEFAULT_CONFIG, PROJECT_VERSION, PhotoPrintConfig } from '../types';
+import { 
+  FilmStripConfig, 
+  FrameData, 
+  FilmStripProject, 
+  VideoSourceInfo,
+  PROJECT_VERSION, 
+  PhotoPrintConfig 
+} from '../types';
 
 const DB_NAME = 'CinemaFilmStripDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Upgraded to v2 for native video Blob persistence
 const STORE_NAME = 'project_cache';
 const KEY_CURRENT_STATE = 'current_filmstrip_state';
 
@@ -35,7 +42,7 @@ function openDB(): Promise<IDBDatabase> {
 }
 
 /**
- * Persist current configuration and frame data to IndexedDB
+ * Persist current configuration, frame data, and uploaded movie blob to IndexedDB
  */
 export async function saveCurrentStateToStorage(
   config: FilmStripConfig,
@@ -48,10 +55,28 @@ export async function saveCurrentStateToStorage(
     exportQuality?: number;
     exportFilename?: string;
     photoPrintConfig?: PhotoPrintConfig;
-  }
+  },
+  videoSource?: VideoSourceInfo | null
 ): Promise<void> {
   try {
     const db = await openDB();
+
+    let videoBlobToStore: Blob | undefined = videoSource?.blob;
+
+    // If blob not directly cached but URL is a blob/file URL, grab the blob
+    if (!videoBlobToStore && videoSource?.url && videoSource.url.startsWith('blob:')) {
+      try {
+        const res = await fetch(videoSource.url);
+        videoBlobToStore = await res.blob();
+      } catch {
+        // Safe ignore
+      }
+    }
+
+    // Determine url to persist: keep static paths (e.g. '/demo-cinema-reel.mp4'), clear blob URLs (rebuilt on load)
+    const isBlobUrl = videoSource?.url ? videoSource.url.startsWith('blob:') : false;
+    const persistentUrl = isBlobUrl ? '' : (videoSource?.url || '');
+
     const project: FilmStripProject = {
       version: PROJECT_VERSION,
       projectName,
@@ -65,6 +90,16 @@ export async function saveCurrentStateToStorage(
       exportQuality: exportSettings?.exportQuality,
       exportFilename: exportSettings?.exportFilename,
       photoPrintConfig: exportSettings?.photoPrintConfig,
+      videoSource: videoSource
+        ? {
+            url: persistentUrl,
+            name: videoSource.name,
+            duration: videoSource.duration,
+            width: videoSource.width,
+            height: videoSource.height,
+          }
+        : undefined,
+      videoBlob: videoBlobToStore,
     };
 
     return new Promise((resolve, reject) => {
@@ -78,7 +113,6 @@ export async function saveCurrentStateToStorage(
     });
   } catch (err) {
     console.warn('Failed to save state to IndexedDB, attempting fallback:', err);
-    // Fallback without big image strings to avoid quota crashes if IDB is disabled
     try {
       localStorage.setItem('filmstrip_config_fallback', JSON.stringify(config));
     } catch {
@@ -88,7 +122,7 @@ export async function saveCurrentStateToStorage(
 }
 
 /**
- * Load cached state from IndexedDB across page reloads
+ * Load cached state and restore video from IndexedDB across page reloads
  */
 export async function loadCurrentStateFromStorage(): Promise<FilmStripProject | null> {
   try {
@@ -101,7 +135,22 @@ export async function loadCurrentStateFromStorage(): Promise<FilmStripProject | 
       getReq.onsuccess = () => {
         const result = getReq.result as FilmStripProject | undefined;
         db.close();
+
         if (result && result.config && Array.isArray(result.frames)) {
+          // If a movie blob was persisted, regenerate the Object URL
+          if (result.videoBlob && result.videoSource) {
+            const reconstructedUrl = URL.createObjectURL(result.videoBlob);
+            result.videoSource = {
+              ...result.videoSource,
+              url: reconstructedUrl,
+              blob: result.videoBlob,
+            };
+          } else if (result.videoSource) {
+            // Verify that url is non-empty and valid; otherwise discard invalid videoSource
+            if (!result.videoSource.url || result.videoSource.url.trim() === '') {
+              result.videoSource = undefined;
+            }
+          }
           resolve(result);
         } else {
           resolve(null);

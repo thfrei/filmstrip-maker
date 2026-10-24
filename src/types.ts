@@ -36,6 +36,7 @@ export interface VideoSourceInfo {
   duration: number;
   width: number;
   height: number;
+  blob?: Blob;
 }
 
 export interface FilmStripConfig {
@@ -126,6 +127,8 @@ export interface FilmStripProject {
   exportQuality?: number;
   exportFilename?: string;
   photoPrintConfig?: PhotoPrintConfig;
+  videoSource?: VideoSourceInfo;
+  videoBlob?: Blob;
 }
 
 export const PROJECT_VERSION = '1.0.0';

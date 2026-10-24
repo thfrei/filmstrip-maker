@@ -10,14 +10,11 @@ import {
   Clock, 
   Camera, 
   ChevronDown, 
-  ChevronUp, 
   Wand2, 
-  Eye, 
-  RefreshCw,
+  Info,
   Check,
-  Maximize2,
   Sliders,
-  X
+  HelpCircle
 } from 'lucide-react';
 import { FrameData, VideoSourceInfo } from '../types';
 import { formatTimecode, parseTimecode, captureVideoFrame, generateDemoCinemaVideo } from '../utils/videoExtractor';
@@ -54,63 +51,129 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sliderRef = useRef<HTMLInputElement>(null);
 
+  // Seeking queue refs to prevent decoder flooding
+  const isSeekingRef = useRef<boolean>(false);
+  const queuedSeekTimeRef = useRef<number | null>(null);
+  const settleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const playPromiseRef = useRef<Promise<void> | null>(null);
+
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
-  const [duration, setDuration] = useState<number>(videoSource?.duration || 10);
+  const [duration, setDuration] = useState<number>(videoSource?.duration || 12);
   const [timeInputString, setTimeInputString] = useState<string>('00:00.00');
-  const [isLiveSyncEnabled, setIsLiveSyncEnabled] = useState<boolean>(true);
+  const [isLiveSyncEnabled, setIsLiveSyncEnabled] = useState<boolean>(false);
   const [isGeneratingDemo, setIsGeneratingDemo] = useState<boolean>(false);
-  const [hoveredTime, setHoveredTime] = useState<number | null>(null);
-  const [hoveredFrameMarker, setHoveredFrameMarker] = useState<number | null>(null);
+  const [isScrubbing, setIsScrubbing] = useState<boolean>(false);
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
+  const [justSnapped, setJustSnapped] = useState<number | null>(null);
+  const [shutterFlash, setShutterFlash] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [showKeyframeInfo, setShowKeyframeInfo] = useState<boolean>(false);
+  const justSnappedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Safe pause that awaits any pending play() promise to prevent AbortError
+  const safePause = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (playPromiseRef.current) {
+      playPromiseRef.current
+        .then(() => {
+          video.pause();
+          setIsPlaying(false);
+        })
+        .catch(() => {
+          try {
+            video.pause();
+          } catch {
+            // ignore
+          }
+          setIsPlaying(false);
+        });
+    } else {
+      try {
+        video.pause();
+      } catch {
+        // ignore
+      }
+      setIsPlaying(false);
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      safePause();
+    };
+  }, [safePause]);
 
   // Active frame index default to 0 if none selected
   const activeFrameIndex = selectedFrameIndex !== null ? selectedFrameIndex : 0;
   const activeFrame = frames[activeFrameIndex];
 
+  // Ref to track last active frame index so seeking only happens on actual user selection change
+  const prevActiveIndexRef = useRef<number | null>(null);
+
+  // Ensure active frame is selected when video deck is open
+  useEffect(() => {
+    if (isOpen && selectedFrameIndex === null && frames.length > 0) {
+      onSelectFrame(0);
+    }
+  }, [isOpen, selectedFrameIndex, frames.length, onSelectFrame]);
+
   // Helper to show transient status messages
   const showStatus = (msg: string) => {
     setStatusMessage(msg);
-    setTimeout(() => setStatusMessage(null), 2500);
+    setTimeout(() => setStatusMessage(null), 3000);
   };
 
-  // When active frame changes, if it has a saved video timestamp, seek to it!
+  // Safe seek handler that queues rapid seeks without dropping decoder state
+  const requestVideoSeek = useCallback((time: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const clampedTime = Math.max(0, Math.min(time, duration || video.duration || time));
+
+    if (isSeekingRef.current) {
+      queuedSeekTimeRef.current = clampedTime;
+      return;
+    }
+
+    isSeekingRef.current = true;
+    video.currentTime = clampedTime;
+  }, [duration]);
+
+  // Video seeked event handler to process queued seeks
+  const handleSeeked = useCallback(() => {
+    isSeekingRef.current = false;
+    const nextSeek = queuedSeekTimeRef.current;
+    if (nextSeek !== null && videoRef.current) {
+      queuedSeekTimeRef.current = null;
+      if (Math.abs(videoRef.current.currentTime - nextSeek) > 0.02) {
+        isSeekingRef.current = true;
+        videoRef.current.currentTime = nextSeek;
+      }
+    }
+  }, []);
+
+  // When active frame selection changes in filmstrip, seek video to its timestamp (if already set)
   useEffect(() => {
     if (!videoRef.current || !videoSource) return;
 
-    if (activeFrame && typeof activeFrame.videoTimestamp === 'number' && !isPlaying) {
-      const targetTime = Math.max(0, Math.min(activeFrame.videoTimestamp, duration));
-      if (Math.abs(videoRef.current.currentTime - targetTime) > 0.08) {
-        videoRef.current.currentTime = targetTime;
-        setCurrentTime(targetTime);
-        setTimeInputString(formatTimecode(targetTime));
+    if (activeFrameIndex !== prevActiveIndexRef.current) {
+      prevActiveIndexRef.current = activeFrameIndex;
+
+      const currentTarget = frames[activeFrameIndex];
+      if (currentTarget && typeof currentTarget.videoTimestamp === 'number' && !isPlaying && !isScrubbing) {
+        const targetTime = Math.max(0, Math.min(currentTarget.videoTimestamp, duration));
+        if (Math.abs(videoRef.current.currentTime - targetTime) > 0.03) {
+          requestVideoSeek(targetTime);
+          setCurrentTime(targetTime);
+          setTimeInputString(formatTimecode(targetTime));
+        }
       }
     }
-  }, [activeFrameIndex, activeFrame?.videoTimestamp, duration, isPlaying, videoSource]);
-
-  // Video time update listener
-  const handleTimeUpdate = () => {
-    if (!videoRef.current) return;
-    const t = videoRef.current.currentTime;
-    setCurrentTime(t);
-    setTimeInputString(formatTimecode(t));
-  };
-
-  // Video loaded metadata
-  const handleLoadedMetadata = () => {
-    if (!videoRef.current) return;
-    const dur = videoRef.current.duration || 10;
-    setDuration(dur);
-    if (videoSource) {
-      onSetVideoSource({
-        ...videoSource,
-        duration: dur,
-        width: videoRef.current.videoWidth || 1280,
-        height: videoRef.current.videoHeight || 720,
-      });
-    }
-  };
+  }, [activeFrameIndex, frames, duration, isPlaying, isScrubbing, videoSource, requestVideoSeek]);
 
   // Capture current video frame into target frame index
   const captureCurrentToFrame = useCallback(
@@ -120,8 +183,12 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
 
       setIsCapturing(true);
       try {
-        const timeToCapture = specificTime !== undefined ? specificTime : video.currentTime;
-        const result = await captureVideoFrame(video, timeToCapture);
+        // If specificTime is provided, use that; otherwise use the instantaneous video.currentTime
+        const timeToCapture = specificTime !== undefined 
+          ? specificTime 
+          : (typeof video.currentTime === 'number' && !isNaN(video.currentTime) ? video.currentTime : 0);
+        // Only pass targetTime to captureVideoFrame if specificTime was explicitly given
+        const result = await captureVideoFrame(video, specificTime);
         
         const videoName = videoSource?.name || 'Movie Clip';
         const formattedTime = formatTimecode(timeToCapture);
@@ -134,8 +201,24 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
           sourceVideoName: videoName,
           imageName: `${videoName} @ ${formattedTime}`,
         });
+
+        // Trigger brief visual success feedback on the Snap button and status bar
+        setJustSnapped(frameIndex);
+        if (justSnappedTimeoutRef.current) {
+          clearTimeout(justSnappedTimeoutRef.current);
+        }
+        justSnappedTimeoutRef.current = setTimeout(() => {
+          setJustSnapped(null);
+        }, 1200);
+
+        // Flash camera shutter effect on monitor
+        setShutterFlash(true);
+        setTimeout(() => setShutterFlash(false), 120);
+
+        showStatus(`✓ Snapped Frame #${frameIndex + 1} @ ${formattedTime}`);
       } catch (err) {
         console.error('Frame capture failed:', err);
+        showStatus(`Failed to snap Frame #${frameIndex + 1}`);
       } finally {
         setIsCapturing(false);
       }
@@ -143,19 +226,60 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
     [videoSource?.name, onUpdateFrameImage]
   );
 
-  // Handle Scrubbing (range slider change)
+  // Video time update listener
+  const handleTimeUpdate = () => {
+    if (!videoRef.current || isScrubbing) return;
+    const t = videoRef.current.currentTime;
+    setCurrentTime(t);
+    setTimeInputString(formatTimecode(t));
+  };
+
+  // Video loaded metadata
+  const handleLoadedMetadata = () => {
+    if (!videoRef.current) return;
+    const dur = videoRef.current.duration || 12;
+    setDuration(dur);
+    if (videoSource) {
+      onSetVideoSource({
+        ...videoSource,
+        duration: dur,
+        width: videoRef.current.videoWidth || 1280,
+        height: videoRef.current.videoHeight || 720,
+      });
+    }
+  };
+
+  // Scrubbing Handler: Updates video preview immediately & settles capture upon pause
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isPlaying) {
+      safePause();
+    }
     const newTime = parseFloat(e.target.value);
     setCurrentTime(newTime);
     setTimeInputString(formatTimecode(newTime));
 
-    if (videoRef.current) {
-      videoRef.current.currentTime = newTime;
-    }
+    // Seek the video preview smoothly
+    requestVideoSeek(newTime);
 
-    // Live update active frame if enabled and not playing
+    // If live sync is enabled, debounce the high-resolution frame capture
     if (isLiveSyncEnabled && !isPlaying) {
-      captureCurrentToFrame(activeFrameIndex, newTime);
+      if (settleTimerRef.current) {
+        clearTimeout(settleTimerRef.current);
+      }
+      settleTimerRef.current = setTimeout(() => {
+        captureCurrentToFrame(activeFrameIndex, newTime);
+      }, 150);
+    }
+  };
+
+  // Handle Scrub Release (pointerup / mouseup on slider)
+  const handleScrubEnd = () => {
+    setIsScrubbing(false);
+    if (isLiveSyncEnabled && !isPlaying) {
+      if (settleTimerRef.current) {
+        clearTimeout(settleTimerRef.current);
+      }
+      captureCurrentToFrame(activeFrameIndex, currentTime);
     }
   };
 
@@ -166,9 +290,7 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
       const clamped = Math.max(0, Math.min(parsed, duration));
       setCurrentTime(clamped);
       setTimeInputString(formatTimecode(clamped));
-      if (videoRef.current) {
-        videoRef.current.currentTime = clamped;
-      }
+      requestVideoSeek(clamped);
       if (isLiveSyncEnabled) {
         captureCurrentToFrame(activeFrameIndex, clamped);
       }
@@ -177,31 +299,50 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
     }
   };
 
-  // Frame Nudge (Step by 1 frame or 1s)
+  // Precise Frame-by-Frame Stepping (±1 frame = 1/30s = 0.0333s)
   const handleStep = (deltaSeconds: number) => {
-    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (!video) return;
+
     if (isPlaying) {
-      videoRef.current.pause();
-      setIsPlaying(false);
+      safePause();
     }
+
     const nextTime = Math.max(0, Math.min(currentTime + deltaSeconds, duration));
-    videoRef.current.currentTime = nextTime;
+    requestVideoSeek(nextTime);
     setCurrentTime(nextTime);
     setTimeInputString(formatTimecode(nextTime));
-    if (isLiveSyncEnabled) {
-      captureCurrentToFrame(activeFrameIndex, nextTime);
-    }
   };
 
-  // Toggle Play / Pause
+  // Toggle Play / Pause safely
   const togglePlay = () => {
-    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (!video) return;
     if (isPlaying) {
-      videoRef.current.pause();
-      setIsPlaying(false);
+      safePause();
     } else {
-      videoRef.current.play();
-      setIsPlaying(true);
+      try {
+        const p = video.play();
+        if (p !== undefined) {
+          playPromiseRef.current = p;
+          p.then(() => {
+            playPromiseRef.current = null;
+            setIsPlaying(true);
+          }).catch((err) => {
+            playPromiseRef.current = null;
+            setIsPlaying(false);
+            if (err?.name !== 'AbortError') {
+              console.warn('Video playback aborted/failed:', err);
+            }
+          });
+        } else {
+          setIsPlaying(true);
+        }
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          console.warn('Video play call error:', err);
+        }
+      }
     }
   };
 
@@ -210,9 +351,20 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    safePause();
+
+    if (videoSource?.url && videoSource.url.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(videoSource.url);
+      } catch {
+        // Safe ignore
+      }
+    }
+
     const url = URL.createObjectURL(file);
     onSetVideoSource({
       url,
+      blob: file,
       name: file.name,
       duration: 0,
       width: 1920,
@@ -221,41 +373,42 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
     showStatus(`Loaded: ${file.name}`);
   };
 
-  // Generate and load Demo Cinema Video
+  // Load All-Keyframe Demo Cinema Video
   const handleLoadDemoVideo = async () => {
+    safePause();
     setIsGeneratingDemo(true);
-    showStatus('Generating vintage 35mm cinema demo clip...');
+    showStatus('Loading 35mm all-keyframe archival cinema reel...');
     try {
       const demo = await generateDemoCinemaVideo();
       onSetVideoSource({
         url: demo.url,
-        name: 'EASTMAN 35MM ARCHIVAL REEL',
+        blob: demo.blob,
+        name: '35MM ALL-KEYFRAME ARCHIVAL REEL',
         duration: demo.duration,
         width: 960,
         height: 540,
       });
-      showStatus('Demo cinema video ready! Scrub timeline to select frames.');
+      showStatus('All-keyframe cinema reel loaded! Zero seek latency.');
       
       // Auto-populate frames evenly across demo video
       setTimeout(() => {
         handleDistributeFramesAcrossVideo(demo.duration);
-      }, 300);
+      }, 400);
     } catch (err) {
-      console.error('Demo video generation failed:', err);
-      showStatus('Failed to generate demo video');
+      console.error('Demo video load failed:', err);
+      showStatus('Failed to load demo video');
     } finally {
       setIsGeneratingDemo(false);
     }
   };
 
-  // Automatically distribute all frames evenly across video duration
+  // Distribute all frames evenly across video duration
   const handleDistributeFramesAcrossVideo = async (overrideDuration?: number) => {
     const dur = overrideDuration || duration;
     if (!videoRef.current || dur <= 0 || frames.length === 0) return;
 
-    showStatus(`Distributing ${frames.length} frames across movie...`);
+    showStatus(`Extracting ${frames.length} frames across movie...`);
     const count = frames.length;
-    // Spread between 8% and 92% of the movie duration to avoid blank black leads
     const startP = 0.08;
     const endP = 0.92;
     const stepP = (endP - startP) / Math.max(1, count - 1);
@@ -264,7 +417,7 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
       const targetTime = count === 1 ? dur * 0.5 : (startP + i * stepP) * dur;
       await captureCurrentToFrame(i, targetTime);
     }
-    showStatus(`All ${count} frames extracted from movie!`);
+    showStatus(`All ${count} frames successfully extracted!`);
   };
 
   if (!isOpen) {
@@ -289,6 +442,7 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
     <div 
       id="video-timeline-deck"
       className="bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800 shadow-2xl z-30 transition-all select-none"
+      onClick={(e) => e.stopPropagation()}
     >
       <input
         ref={fileInputRef}
@@ -308,7 +462,7 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
 
           <div className="hidden sm:flex items-center gap-2 text-zinc-400 text-[11px]">
             <span className="text-zinc-600">|</span>
-            <span className="truncate max-w-[200px] text-zinc-300 font-mono">
+            <span className="truncate max-w-[220px] text-zinc-300 font-mono">
               {videoSource ? videoSource.name : 'No movie loaded'}
             </span>
             {videoSource && (
@@ -318,49 +472,75 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
             )}
           </div>
 
+          {/* Keyframe & Seeking Explainer Tooltip Toggle */}
+          <button
+            onClick={() => setShowKeyframeInfo((v) => !v)}
+            className="flex items-center gap-1 text-[11px] font-mono text-zinc-400 hover:text-amber-400 transition-colors cursor-pointer"
+            title="Understanding Keyframes & Scrubbing in Video Codecs"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-zinc-500 hover:text-amber-400" />
+            <span className="hidden lg:inline text-[10px]">Keyframe Info</span>
+          </button>
+
           {statusMessage && (
-            <span className="text-amber-300 font-mono text-[11px] animate-pulse bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800/60">
+            <span className="text-amber-300 font-mono text-[11px] bg-amber-950/90 px-2.5 py-0.5 rounded border border-amber-800/80 shadow">
               {statusMessage}
             </span>
           )}
         </div>
 
         {/* Quick Deck Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <button
-            onClick={() => fileInputRef.current?.click()}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              fileInputRef.current?.click();
+            }}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white border border-zinc-700 font-mono text-[11px] cursor-pointer transition-colors"
-            title="Upload an MP4, WebM, or MOV video file"
+            title="Upload any MP4, WebM, or MOV video file"
           >
             <Upload className="w-3.5 h-3.5 text-amber-400" />
             <span>Upload Movie</span>
           </button>
 
           <button
-            onClick={handleLoadDemoVideo}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleLoadDemoVideo();
+            }}
             disabled={isGeneratingDemo}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono text-[11px] cursor-pointer transition-colors disabled:opacity-50"
-            title="Load in-browser 35mm cinema demo clip"
+            title="Load 35mm all-keyframe demo cinema reel"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>{isGeneratingDemo ? 'Generating...' : 'Load Demo Film'}</span>
+            <span>{isGeneratingDemo ? 'Loading...' : 'Load 35mm Demo Reel'}</span>
           </button>
 
           {videoSource && (
             <button
-              onClick={() => handleDistributeFramesAcrossVideo()}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDistributeFramesAcrossVideo();
+              }}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-zinc-100 border border-zinc-700 font-mono text-[11px] cursor-pointer transition-colors"
-              title="Automatically distribute all strip frames evenly across the video"
+              title="Automatically distribute all strip frames evenly across the movie"
             >
               <Wand2 className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="hidden md:inline">Auto-Distribute Frames</span>
+              <span className="hidden md:inline">Auto-Distribute</span>
             </button>
           )}
 
           <div className="h-4 w-px bg-zinc-800 mx-1" />
 
           <button
-            onClick={onToggleOpen}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleOpen();
+            }}
             className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
             title="Minimize Movie Deck"
           >
@@ -369,18 +549,50 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
         </div>
       </div>
 
+      {/* Keyframe Explainer Dropdown Banner */}
+      {showKeyframeInfo && (
+        <div className="px-4 py-2 bg-amber-950/40 border-b border-amber-500/20 text-[11px] text-zinc-300 flex items-start gap-2.5 animate-in slide-in-from-top-2 duration-150">
+          <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1">
+            <p className="font-semibold text-amber-300">
+              Why do some movies skip or snap when scrubbing fast?
+            </p>
+            <p className="text-zinc-300 leading-relaxed">
+              Standard movie files (H.264 / VP9 / AV1) use <strong>long-GOP compression</strong>: they only store full pictures (<span className="text-amber-400 font-mono">I-frames / Keyframes</span>) every 1–3 seconds, and only mathematical differences (<span className="text-cyan-400 font-mono">P/B delta frames</span>) in between.
+              During high-speed dragging, video decoders prioritize keyframes to prevent freezing.
+              When you <strong>pause on a time</strong> or use the <strong>◀ -1 Frame / ▶ +1 Frame</strong> buttons, the decoder fully reconstructs the exact delta frame!
+            </p>
+          </div>
+          <button
+            onClick={() => setShowKeyframeInfo(false)}
+            className="text-zinc-500 hover:text-zinc-300 text-xs font-mono p-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* 2. MAIN DECK BODY */}
       <div className="p-3.5 flex flex-col md:flex-row gap-4 items-stretch">
         {/* Left: Small Video Preview Monitor */}
         <div className="w-full md:w-56 shrink-0 flex flex-col gap-2">
           <div className="relative aspect-video bg-black rounded-lg overflow-hidden border border-zinc-800 shadow-inner flex items-center justify-center group">
-            {videoSource ? (
+            {videoSource && videoSource.url && videoSource.url.trim() !== '' ? (
               <video
                 ref={videoRef}
                 src={videoSource.url}
                 className="w-full h-full object-contain cursor-pointer"
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
+                onSeeked={handleSeeked}
+                onError={(e) => {
+                  const mediaErr = e.currentTarget.error;
+                  // Code 1 is MEDIA_ERR_ABORTED - fetching process was aborted by user agent
+                  if (mediaErr?.code === 1) {
+                    return;
+                  }
+                  console.warn('Video playback notice:', mediaErr);
+                }}
                 onClick={togglePlay}
                 playsInline
                 preload="auto"
@@ -403,38 +615,61 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
               </div>
             )}
 
-            {/* Capturing pulse indicator */}
+            {/* Camera shutter flash effect on snapshot */}
+            {shutterFlash && (
+              <div className="absolute inset-0 bg-white/70 pointer-events-none transition-opacity duration-150" />
+            )}
+
+            {/* Non-intrusive capturing badge */}
             {isCapturing && (
-              <div className="absolute inset-0 bg-amber-500/20 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
-                <span className="px-2 py-1 rounded bg-black/90 text-amber-400 font-mono text-xs font-bold shadow-lg animate-pulse">
-                  SAVING FRAME #{activeFrameIndex + 1}...
-                </span>
+              <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded bg-black/85 backdrop-blur-sm border border-amber-500/60 font-mono text-[10px] text-amber-400 font-bold pointer-events-none flex items-center gap-1.5 shadow-lg">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                <span>SNAPPING #{activeFrameIndex + 1}...</span>
               </div>
             )}
           </div>
 
-          {/* Mini Playback Controls */}
-          <div className="flex items-center justify-between px-1 py-0.5 bg-zinc-900/80 rounded-md border border-zinc-800/80 text-zinc-300">
+          {/* Precision Frame-by-Frame Stepping Controls */}
+          <div 
+            className="flex items-center justify-between px-1.5 py-1 bg-zinc-900/90 rounded-md border border-zinc-800/80 text-zinc-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* -1 Second */}
             <button
-              onClick={() => handleStep(-1)}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStep(-1.0);
+              }}
               disabled={!videoSource}
-              className="p-1 hover:text-amber-400 hover:bg-zinc-800 rounded transition-colors cursor-pointer disabled:opacity-40"
-              title="Step -1 second"
+              className="px-1.5 py-0.5 hover:text-amber-400 hover:bg-zinc-800 rounded transition-colors cursor-pointer disabled:opacity-40 font-mono text-[10px] font-bold"
+              title="Step -1 second (Preview only)"
             >
-              <span className="text-[10px] font-mono font-bold">-1s</span>
+              -1s
             </button>
 
+            {/* -1 Exact Frame (1/30 sec) */}
             <button
-              onClick={() => handleStep(-0.033)}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStep(-0.0333);
+              }}
               disabled={!videoSource}
-              className="p-1 hover:text-amber-400 hover:bg-zinc-800 rounded transition-colors cursor-pointer disabled:opacity-40"
-              title="Step -1 frame (1/30 sec)"
+              className="flex items-center gap-0.5 px-1.5 py-0.5 hover:text-amber-400 hover:bg-zinc-800 rounded transition-colors cursor-pointer disabled:opacity-40 text-xs font-mono"
+              title="Step -1 frame (exact 1/30 sec, preview only)"
             >
-              <SkipBack className="w-3.5 h-3.5" />
+              <SkipBack className="w-3 h-3" />
+              <span className="text-[10px] font-bold">-1f</span>
             </button>
 
+            {/* Play / Pause */}
             <button
-              onClick={togglePlay}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePlay();
+              }}
               disabled={!videoSource}
               className="p-1.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded transition-colors cursor-pointer disabled:opacity-40"
               title={isPlaying ? 'Pause' : 'Play'}
@@ -442,22 +677,33 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
               {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ml-0.5" />}
             </button>
 
+            {/* +1 Exact Frame (1/30 sec) */}
             <button
-              onClick={() => handleStep(0.033)}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStep(0.0333);
+              }}
               disabled={!videoSource}
-              className="p-1 hover:text-amber-400 hover:bg-zinc-800 rounded transition-colors cursor-pointer disabled:opacity-40"
-              title="Step +1 frame (1/30 sec)"
+              className="flex items-center gap-0.5 px-1.5 py-0.5 hover:text-amber-400 hover:bg-zinc-800 rounded transition-colors cursor-pointer disabled:opacity-40 text-xs font-mono"
+              title="Step +1 frame (exact 1/30 sec, preview only)"
             >
-              <SkipForward className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-bold">+1f</span>
+              <SkipForward className="w-3 h-3" />
             </button>
 
+            {/* +1 Second */}
             <button
-              onClick={() => handleStep(1)}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStep(1.0);
+              }}
               disabled={!videoSource}
-              className="p-1 hover:text-amber-400 hover:bg-zinc-800 rounded transition-colors cursor-pointer disabled:opacity-40"
-              title="Step +1 second"
+              className="px-1.5 py-0.5 hover:text-amber-400 hover:bg-zinc-800 rounded transition-colors cursor-pointer disabled:opacity-40 font-mono text-[10px] font-bold"
+              title="Step +1 second (Preview only)"
             >
-              <span className="text-[10px] font-mono font-bold">+1s</span>
+              +1s
             </button>
           </div>
         </div>
@@ -468,17 +714,21 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             {/* Frame Selector Pills: Clicking selects active frame */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-zinc-400 font-mono text-[11px] mr-1">Active Target:</span>
+              <span className="text-zinc-300 font-mono text-[11px] font-semibold mr-1">Target Frame:</span>
               {frames.map((frame, idx) => {
                 const isSelected = activeFrameIndex === idx;
                 const hasTime = typeof frame.videoTimestamp === 'number';
                 return (
                   <button
                     key={frame.id}
-                    onClick={() => {
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       onSelectFrame(idx);
-                      if (videoRef.current && hasTime) {
-                        videoRef.current.currentTime = frame.videoTimestamp!;
+                      if (hasTime) {
+                        requestVideoSeek(frame.videoTimestamp!);
+                        setCurrentTime(frame.videoTimestamp!);
+                        setTimeInputString(formatTimecode(frame.videoTimestamp!));
                       }
                     }}
                     className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-mono cursor-pointer transition-all ${
@@ -525,7 +775,7 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
               {/* Live Sync Toggle */}
               <label 
                 className="flex items-center gap-1.5 text-[11px] text-zinc-300 cursor-pointer select-none px-2 py-1 rounded bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800"
-                title="When enabled, scrubbing the timeline immediately updates the selected frame in the filmstrip"
+                title="When enabled, dragging the timeline slider automatically captures the frame into the strip when you stop"
               >
                 <input
                   type="checkbox"
@@ -533,23 +783,40 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
                   onChange={(e) => setIsLiveSyncEnabled(e.target.checked)}
                   className="accent-amber-500 w-3.5 h-3.5 rounded cursor-pointer"
                 />
-                <span className="font-mono">Live Scrub</span>
+                <span className="font-mono">Auto-Sync</span>
               </label>
 
-              {/* Capture Current Frame Button */}
+              {/* Instant Frame Capture Button */}
               <button
-                onClick={() => captureCurrentToFrame(activeFrameIndex)}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  captureCurrentToFrame(activeFrameIndex);
+                }}
                 disabled={!videoSource || isCapturing}
-                className="flex items-center gap-1.5 px-3 py-1 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded font-mono text-xs cursor-pointer transition-all shadow-md shadow-amber-500/20 active:scale-95 disabled:opacity-40"
-                title={`Grab snapshot at ${formatTimecode(currentTime)} into Frame #${activeFrameIndex + 1}`}
+                className={`flex items-center gap-1.5 px-3 py-1 font-bold rounded font-mono text-xs cursor-pointer transition-all shadow-md active:scale-95 disabled:opacity-40 ${
+                  justSnapped === activeFrameIndex
+                    ? 'bg-emerald-400 text-zinc-950 shadow-emerald-500/30 ring-1 ring-emerald-300'
+                    : 'bg-amber-500 hover:bg-amber-400 text-zinc-950 shadow-amber-500/20'
+                }`}
+                title={`Grab exact frame at current position into Frame #${activeFrameIndex + 1}`}
               >
-                <Camera className="w-3.5 h-3.5" />
-                <span>Snap to #{activeFrameIndex + 1}</span>
+                {justSnapped === activeFrameIndex ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>Snapped #{activeFrameIndex + 1}!</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>{isCapturing ? 'Snapping...' : `Snap to #${activeFrameIndex + 1}`}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
 
-          {/* 3. THE MULTI-FRAME TIMELINE SLIDER (USER'S CORE REQUIREMENT) */}
+          {/* 3. FULL-WIDTH TIMELINE TRACK WITH ALL FRAME MARKERS */}
           <div className="relative pt-6 pb-4">
             {/* Timeline Bar Track */}
             <div className="relative w-full h-8 bg-zinc-900/90 rounded-lg border border-zinc-800 overflow-visible flex items-center">
@@ -571,49 +838,49 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
                 ))}
               </div>
 
-              {/* MARKERS FOR ALL FRAMES ON THE TIMELINE */}
+              {/* MULTI-FRAME MARKERS ON THE TIMELINE */}
               {frames.map((frame, idx) => {
                 const isSelected = activeFrameIndex === idx;
-                // If timestamp is not set yet, position evenly as default preview
-                const frameTime = typeof frame.videoTimestamp === 'number'
-                  ? frame.videoTimestamp
-                  : (idx / Math.max(1, frames.length - 1)) * duration;
-                
-                const percent = duration > 0 ? Math.max(0, Math.min(100, (frameTime / duration) * 100)) : 0;
 
                 if (isSelected) {
-                  // PRIMARY COLOR SLIDER THUMB (The active selected frame!)
+                  // PRIMARY COLOR SLIDER THUMB: Dynamically follows the slider cursor in real time
+                  const activePercent = duration > 0 ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0;
                   return (
                     <div
                       key={`active-marker-${frame.id}`}
                       className="absolute -top-3.5 bottom-0 z-30 pointer-events-none transform -translate-x-1/2 flex flex-col items-center"
-                      style={{ left: `${percent}%` }}
+                      style={{ left: `${activePercent}%` }}
                     >
                       {/* Active Frame Badge with Primary Color (Kodak Amber #f59e0b) */}
-                      <div className="px-2 py-0.5 rounded-full bg-amber-500 text-zinc-950 font-mono font-black text-[11px] shadow-xl shadow-amber-500/50 ring-4 ring-amber-500/30 ring-offset-2 ring-offset-zinc-950 flex items-center gap-1 animate-in zoom-in-75 duration-150">
+                      <div className="px-2.5 py-0.5 rounded-full bg-amber-500 text-zinc-950 font-mono font-black text-[11px] shadow-xl shadow-amber-500/50 ring-4 ring-amber-500/30 ring-offset-2 ring-offset-zinc-950 flex items-center gap-1 animate-in zoom-in-75 duration-150">
                         <span>#{idx + 1}</span>
-                        <span className="text-[9px] font-semibold opacity-90">ACTIVE</span>
+                        <span className="text-[9px] font-semibold opacity-90">TARGET</span>
                       </div>
                       {/* Needle Indicator */}
                       <div className="w-1 flex-1 bg-amber-400 shadow-[0_0_10px_#f59e0b] rounded-full my-0.5" />
                     </div>
                   );
                 } else {
-                  // SECONDARY SLIDER MARKERS (Other frames visible along the timeline)
+                  // SECONDARY SLIDER MARKERS: Remain pinned at their captured/saved timestamps
+                  const frameTime = typeof frame.videoTimestamp === 'number'
+                    ? frame.videoTimestamp
+                    : (idx / Math.max(1, frames.length - 1)) * duration;
+                  const otherPercent = duration > 0 ? Math.max(0, Math.min(100, (frameTime / duration) * 100)) : 0;
+
                   return (
                     <div
                       key={`other-marker-${frame.id}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelectFrame(idx);
-                        if (videoRef.current) {
-                          videoRef.current.currentTime = frameTime;
+                        if (typeof frame.videoTimestamp === 'number') {
+                          requestVideoSeek(frame.videoTimestamp);
+                          setCurrentTime(frame.videoTimestamp);
+                          setTimeInputString(formatTimecode(frame.videoTimestamp));
                         }
                       }}
-                      onMouseEnter={() => setHoveredFrameMarker(idx)}
-                      onMouseLeave={() => setHoveredFrameMarker(null)}
                       className="absolute -top-2.5 bottom-0 z-20 cursor-pointer transform -translate-x-1/2 flex flex-col items-center group transition-transform hover:scale-110"
-                      style={{ left: `${percent}%` }}
+                      style={{ left: `${otherPercent}%` }}
                       title={`Frame #${idx + 1} @ ${formatTimecode(frameTime)} - Click to select & seek`}
                     >
                       {/* Frame Pin Badge */}
@@ -632,9 +899,13 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
                 ref={sliderRef}
                 type="range"
                 min={0}
-                max={duration || 10}
-                step={0.02}
+                max={duration || 12}
+                step={0.01}
                 value={currentTime}
+                onPointerDown={() => setIsScrubbing(true)}
+                onPointerUp={handleScrubEnd}
+                onTouchStart={() => setIsScrubbing(true)}
+                onTouchEnd={handleScrubEnd}
                 onChange={handleSliderChange}
                 disabled={!videoSource}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-40"
@@ -646,7 +917,11 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
             <div className="flex justify-between items-center text-[10px] font-mono text-zinc-500 mt-1.5 px-1">
               <span>00:00.00</span>
               <span className="text-zinc-400">
-                Scrub to pick scene for Frame #{activeFrameIndex + 1} • Click other badges (#2, #3...) to switch
+                {isScrubbing ? (
+                  <span className="text-amber-400 font-semibold animate-pulse">Scrubbing to select frame...</span>
+                ) : (
+                  <span>Drag slider to scrub • Use <strong>-1f / +1f</strong> for single-frame precision • Click badges (#2, #3...) to switch</span>
+                )}
               </span>
               <span>{formatTimecode(duration)}</span>
             </div>

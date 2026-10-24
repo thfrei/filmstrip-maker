@@ -97,11 +97,16 @@ Open your browser and navigate to `http://localhost:3000` to start creating film
 ## 📖 How to Use
 
 1. **Configure Film Strip**: Use the left sidebar to set the number of frames, aspect ratio, film stock preset, and border colors.
-2. **Add Photos**: Click on any frame box or drag and drop images directly onto the strip.
-3. **Adjust Framing & Filters**:
-   - Click on any frame to activate the **3-Column Frame Options Bar** at the bottom.
-   - Adjust Zoom, Rotation, Pan, Flips, Color Grading, and Custom Edge Labels.
-4. **Export**: Click the **Export Strip** button at the top-right header to download a high-resolution PNG, JPEG, or WebP file.
+2. **Add Photos or Movie**:
+   - Click on any frame box or drag and drop images directly onto the strip.
+   - Or click **🎬 Movie Reel Deck** to upload a movie file (`.mp4`, `.webm`, `.mov`) or load the 35mm demo reel. Scrub to any timestamp to pick frames.
+3. **Select & Link Frames**:
+   - Click on any frame in the strip, the **Selected Frame** buttons, or the **Target Frame** buttons in the video deck. All indicators sync instantly in amber.
+4. **Adjust Framing & Filters**:
+   - Use the docked **3-Column Frame Options Bar** at the bottom to adjust Zoom, Rotation, Pan, Flips, Color Grading, and Custom Edge Labels.
+5. **Save & Export**:
+   - **Save Project (.filmproj)**: Bundles your full project, high-res photos, and **source movie video** into a portable package. Auto-saved to browser IndexedDB across reloads.
+   - **Export High-Res Strip**: Download high-resolution PNG, JPEG, or WebP files ready for digital display or 15x10cm print.
 
 ---
 

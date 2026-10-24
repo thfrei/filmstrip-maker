@@ -318,10 +318,12 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
     <main
       id="film-strip-preview-area"
       className="flex-1 flex flex-col h-full overflow-hidden bg-zinc-950 text-zinc-100 relative select-none"
-      onClick={() => onSelectFrame(null)}
     >
       {/* Top Preview Control Bar */}
-      <div className="h-12 border-b border-zinc-800/80 bg-zinc-900/60 px-4 flex items-center justify-between shrink-0 z-20 backdrop-blur-sm">
+      <div 
+        className="h-12 border-b border-zinc-800/80 bg-zinc-900/60 px-4 flex items-center justify-between shrink-0 z-20 backdrop-blur-sm"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center gap-3">
           <span className="text-xs text-zinc-400 font-medium flex items-center gap-1.5">
             <Camera className="w-3.5 h-3.5 text-amber-400" />
@@ -479,6 +481,11 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
         onPointerMove={handleStagePointerMove}
         onPointerUp={handleStagePointerUp}
         onPointerCancel={handleStagePointerUp}
+        onClick={(e) => {
+          if (e.target === containerRef.current) {
+            onSelectFrame(null);
+          }
+        }}
         style={{ backgroundColor: '#A8A8A8' }}
         className={`flex-1 w-full h-full overflow-hidden flex items-center justify-center p-8 relative film-grain-bg select-none ${
           isSpacePressed
@@ -663,11 +670,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                       id={`film-frame-${index}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (frameData.imageUrl) {
-                          onSelectFrame(index);
-                        } else {
-                          fileInputRefs.current[index]?.click();
-                        }
+                        onSelectFrame(index);
                       }}
                       onDragOver={(e) => handleDragOver(e, index)}
                       onDragLeave={handleDragLeave}
@@ -940,9 +943,10 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
       <div 
         id="film-status-bar"
         className="h-9 border-t border-zinc-800/80 bg-zinc-900/90 px-4 flex items-center justify-between shrink-0 text-xs text-zinc-400 z-10"
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-zinc-300 text-[11px]">Active Frames:</span>
+          <span className="font-semibold text-zinc-300 text-[11px]">Selected Frame:</span>
           <div className="flex items-center gap-1">
             {Array.from({ length: config.frameCount }).map((_, i) => {
               const hasImg = !!frames[i]?.imageUrl;
@@ -952,16 +956,16 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                   key={`frame-dot-${i}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onSelectFrame(isSelected ? null : i);
+                    onSelectFrame(i);
                   }}
-                  className={`px-2 py-0.5 rounded text-[11px] font-mono transition-all cursor-pointer ${
+                  className={`px-2.5 py-0.5 rounded text-[11px] font-mono transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-amber-500 text-zinc-950 font-bold shadow'
+                      ? 'bg-amber-500 text-zinc-950 font-bold shadow-md ring-2 ring-amber-400'
                       : hasImg
                       ? 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700 border border-zinc-700'
                       : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800 border border-zinc-800'
                   }`}
-                  title={`Frame ${i + 1} (${hasImg ? 'Has Image' : 'Empty'}) - Click to inspect`}
+                  title={`Select Frame #${i + 1} (${hasImg ? 'Has Image' : 'Empty'})`}
                 >
                   #{i + 1}
                 </button>

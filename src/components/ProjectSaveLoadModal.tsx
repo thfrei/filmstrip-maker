@@ -18,7 +18,7 @@ import {
   Layers
 } from 'lucide-react';
 import { FilmStripConfig, FrameData, FilmStripProject, PhotoPrintConfig } from '../types';
-import { exportProjectAsZip, exportProjectAsJson, importProjectFromFile, ProjectExportSettings } from '../utils/projectArchive';
+import { exportProjectAsZip, importProjectFromFile, ProjectExportSettings } from '../utils/projectArchive';
 import { clearStorageState } from '../utils/storage';
 
 interface ProjectSaveLoadModalProps {
@@ -47,7 +47,7 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
   exportSettings,
 }) => {
   const [activeTab, setActiveTab] = useState<'save' | 'open' | 'storage'>('save');
-  const [saveFormat, setSaveFormat] = useState<'zip' | 'filmproj' | 'json'>('filmproj');
+  const [saveFormat, setSaveFormat] = useState<'filmproj' | 'zip'>('filmproj');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [progress, setProgress] = useState<{ percent: number; status: string }>({ percent: 0, status: '' });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -67,22 +67,18 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
     setProgress({ percent: 5, status: 'Preparing project bundle...' });
 
     try {
-      if (saveFormat === 'filmproj') {
-        await exportProjectAsZip(config, frames, projectName, 'filmproj', (percent, status) => {
+      const ext = saveFormat === 'zip' ? 'zip' : 'filmproj';
+      await exportProjectAsZip(
+        config, 
+        frames, 
+        projectName, 
+        ext, 
+        (percent, status) => {
           setProgress({ percent, status });
-        }, exportSettings);
-        setSuccessMessage(`Exported "${projectName}.filmproj" successfully!`);
-      } else if (saveFormat === 'zip') {
-        await exportProjectAsZip(config, frames, projectName, 'zip', (percent, status) => {
-          setProgress({ percent, status });
-        }, exportSettings);
-        setSuccessMessage(`Exported "${projectName}.zip" archive successfully!`);
-      } else {
-        await exportProjectAsJson(config, frames, projectName, (percent, status) => {
-          setProgress({ percent, status });
-        }, exportSettings);
-        setSuccessMessage(`Exported "${projectName}.filmjson" successfully!`);
-      }
+        }, 
+        exportSettings
+      );
+      setSuccessMessage(`Exported "${projectName}.${ext}" project bundle successfully!`);
     } catch (err: any) {
       console.error(err);
       setErrorMessage(err.message || 'Failed to export project');
@@ -236,77 +232,47 @@ export const ProjectSaveLoadModal: React.FC<ProjectSaveLoadModalProps> = ({
 
               {/* Format Options */}
               <div className="space-y-2">
-                <label className="text-xs font-medium text-zinc-300">Choose Archive Format</label>
+                <label className="text-xs font-medium text-zinc-300">Project Archive Format</label>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Option 1: .filmproj / .zip (Recommended) */}
-                  <div
-                    onClick={() => setSaveFormat('filmproj')}
-                    className={`cursor-pointer p-3.5 rounded-xl border transition-all text-left space-y-1.5 ${
-                      saveFormat === 'filmproj' || saveFormat === 'zip'
-                        ? 'bg-amber-500/10 border-amber-500/60 ring-1 ring-amber-500/40'
-                        : 'bg-zinc-950/40 border-zinc-800 hover:border-zinc-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Archive className="w-4 h-4 text-amber-400" />
-                        <span className="text-xs font-semibold text-zinc-200">
-                          Cinema Bundle (.filmproj / .zip)
-                        </span>
-                      </div>
-                      <span className="text-[10px] uppercase font-bold bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">
-                        Recommended
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-zinc-400 leading-relaxed">
-                      Packages full-resolution images (~5MB+) into a fast, compressed archive alongside styling manifest.
-                    </p>
-                    <div className="flex items-center gap-3 pt-1 text-[11px] text-zinc-500">
-                      <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
-                        <input
-                          type="radio"
-                          name="zipType"
-                          checked={saveFormat === 'filmproj'}
-                          onChange={() => setSaveFormat('filmproj')}
-                          className="accent-amber-500"
-                        />
-                        <span>.filmproj</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
-                        <input
-                          type="radio"
-                          name="zipType"
-                          checked={saveFormat === 'zip'}
-                          onChange={() => setSaveFormat('zip')}
-                          className="accent-amber-500"
-                        />
-                        <span>.zip</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Option 2: .filmjson */}
-                  <div
-                    onClick={() => setSaveFormat('json')}
-                    className={`cursor-pointer p-3.5 rounded-xl border transition-all text-left space-y-1.5 ${
-                      saveFormat === 'json'
-                        ? 'bg-amber-500/10 border-amber-500/60 ring-1 ring-amber-500/40'
-                        : 'bg-zinc-950/40 border-zinc-800 hover:border-zinc-700'
-                    }`}
-                  >
+                {/* Single unified .filmproj / .zip bundle option */}
+                <div
+                  className="p-4 rounded-xl border bg-amber-500/10 border-amber-500/60 ring-1 ring-amber-500/40 text-left space-y-2"
+                >
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <FileCode className="w-4 h-4 text-cyan-400" />
-                      <span className="text-xs font-semibold text-zinc-200">
-                        Standalone JSON (.filmjson)
+                      <Archive className="w-4 h-4 text-amber-400" />
+                      <span className="text-sm font-bold text-zinc-100">
+                        Cinema Project Bundle (.filmproj)
                       </span>
                     </div>
-                    <p className="text-[11px] text-zinc-400 leading-relaxed">
-                      Single text document with embedded base64 images. Great for easy file exchange and simple text archiving.
-                    </p>
-                    <span className="text-[10px] text-zinc-500 block pt-1">
-                      Contains {filledFramesCount} photo{filledFramesCount !== 1 ? 's' : ''} & strip styles
+                    <span className="text-[10px] uppercase font-bold bg-amber-500 text-zinc-950 px-2 py-0.5 rounded shadow">
+                      Complete Archive
                     </span>
+                  </div>
+                  <p className="text-xs text-zinc-300 leading-relaxed">
+                    Packages your strip settings, high-res photos, <strong>full source movie video</strong>, and frame timestamps into a single portable project file. You can drag & drop it back into the app anytime to resume editing with full video scrubbing.
+                  </p>
+                  <div className="flex items-center gap-4 pt-1 text-xs">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-zinc-200 font-medium">
+                      <input
+                        type="radio"
+                        name="zipType"
+                        checked={saveFormat === 'filmproj'}
+                        onChange={() => setSaveFormat('filmproj')}
+                        className="accent-amber-500 w-3.5 h-3.5"
+                      />
+                      <span>.filmproj (Cinema Film Project)</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
+                      <input
+                        type="radio"
+                        name="zipType"
+                        checked={saveFormat === 'zip'}
+                        onChange={() => setSaveFormat('zip')}
+                        className="accent-amber-500 w-3.5 h-3.5"
+                      />
+                      <span>.zip archive</span>
+                    </label>
                   </div>
                 </div>
               </div>

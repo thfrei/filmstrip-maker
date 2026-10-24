@@ -45,7 +45,7 @@ export default function App() {
     }));
   });
 
-  const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
+  const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(0);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState<boolean>(false);
 
@@ -76,6 +76,10 @@ export default function App() {
           if (savedProject.photoPrintConfig) {
             setPhotoPrintConfig({ ...DEFAULT_PHOTO_PRINT_CONFIG, ...savedProject.photoPrintConfig });
           }
+          if (savedProject.videoSource && savedProject.videoSource.url && savedProject.videoSource.url.trim() !== '') {
+            setVideoSource(savedProject.videoSource);
+            setIsVideoDeckOpen(true);
+          }
         }
         setIsLoadedFromStorage(true);
       })
@@ -89,19 +93,25 @@ export default function App() {
     };
   }, []);
 
-  // Debounced auto-save to IndexedDB whenever config, frames, projectName or export settings change
+  // Debounced auto-save to IndexedDB whenever config, frames, projectName, videoSource or export settings change
   useEffect(() => {
     if (!isLoadedFromStorage) return;
 
     const timer = setTimeout(() => {
-      saveCurrentStateToStorage(config, frames, projectName, {
-        exportMode,
-        exportMultiplier,
-        exportFormat,
-        exportQuality,
-        exportFilename,
-        photoPrintConfig,
-      })
+      saveCurrentStateToStorage(
+        config, 
+        frames, 
+        projectName, 
+        {
+          exportMode,
+          exportMultiplier,
+          exportFormat,
+          exportQuality,
+          exportFilename,
+          photoPrintConfig,
+        },
+        videoSource
+      )
         .then(() => {
           setLastAutoSavedTime(new Date());
         })
@@ -111,7 +121,7 @@ export default function App() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [config, frames, projectName, exportMode, exportMultiplier, exportFormat, exportQuality, exportFilename, photoPrintConfig, isLoadedFromStorage]);
+  }, [config, frames, projectName, exportMode, exportMultiplier, exportFormat, exportQuality, exportFilename, photoPrintConfig, videoSource, isLoadedFromStorage]);
 
   // Sync frames array length when config.frameCount changes
   const handleUpdateConfig = useCallback((updated: Partial<FilmStripConfig>) => {
@@ -217,6 +227,10 @@ export default function App() {
   );
 
   const handleSetVideoSource = useCallback((source: VideoSourceInfo | null) => {
+    if (source && (!source.url || source.url.trim() === '')) {
+      setVideoSource(null);
+      return;
+    }
     setVideoSource(source);
     if (source) {
       setIsVideoDeckOpen(true);
@@ -337,7 +351,11 @@ export default function App() {
     if (project.photoPrintConfig) {
       setPhotoPrintConfig({ ...DEFAULT_PHOTO_PRINT_CONFIG, ...project.photoPrintConfig });
     }
-    setSelectedFrameIndex(null);
+    if (project.videoSource && project.videoSource.url && project.videoSource.url.trim() !== '') {
+      setVideoSource(project.videoSource);
+      setIsVideoDeckOpen(true);
+    }
+    setSelectedFrameIndex(0);
     setLastAutoSavedTime(new Date());
   }, []);
 
@@ -351,6 +369,8 @@ export default function App() {
     setExportQuality(0.95);
     setExportFilename('filmstrip-15x10cm-photo');
     setPhotoPrintConfig(DEFAULT_PHOTO_PRINT_CONFIG);
+    setVideoSource(null);
+    setIsVideoDeckOpen(false);
     setFrames(
       Array.from({ length: DEFAULT_CONFIG.frameCount }).map((_, i) => ({
         id: `frame-${i}-${Date.now()}`,
@@ -364,7 +384,7 @@ export default function App() {
         filters: { ...DEFAULT_FILTERS },
       }))
     );
-    setSelectedFrameIndex(null);
+    setSelectedFrameIndex(0);
   }, []);
 
   // Keyboard navigation & shortcuts
@@ -503,6 +523,7 @@ export default function App() {
           exportQuality,
           exportFilename,
           photoPrintConfig,
+          videoSource,
         }}
       />
     </div>

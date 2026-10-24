@@ -1,5 +1,12 @@
 import JSZip from 'jszip';
-import { FilmStripConfig, FrameData, FilmStripProject, PROJECT_VERSION, PhotoPrintConfig } from '../types';
+import { 
+  FilmStripConfig, 
+  FrameData, 
+  FilmStripProject, 
+  VideoSourceInfo,
+  PROJECT_VERSION, 
+  PhotoPrintConfig 
+} from '../types';
 
 /**
  * Converts a data URL, blob URL or remote URL to an ArrayBuffer and mimeType
@@ -47,10 +54,11 @@ export interface ProjectExportSettings {
   exportQuality?: number;
   exportFilename?: string;
   photoPrintConfig?: PhotoPrintConfig;
+  videoSource?: VideoSourceInfo | null;
 }
 
 /**
- * Exports complete project (settings + binary image assets) as a compressed ZIP file (.filmproj or .zip)
+ * Exports complete project (settings + frames + full source movie video) as a unified .filmproj bundle
  */
 export async function exportProjectAsZip(
   config: FilmStripConfig,
@@ -60,7 +68,7 @@ export async function exportProjectAsZip(
   onProgress?: (percent: number, status: string) => void,
   exportSettings?: ProjectExportSettings
 ): Promise<void> {
-  if (onProgress) onProgress(10, 'Initializing zip archive...');
+  if (onProgress) onProgress(5, 'Initializing project archive...');
   const zip = new JSZip();
 
   const assetsFolder = zip.folder('assets');
@@ -68,11 +76,12 @@ export async function exportProjectAsZip(
 
   const totalFrames = frames.length;
 
+  // 1. Package Picture Frame Assets
   for (let i = 0; i < totalFrames; i++) {
     const frame = frames[i];
     if (onProgress) {
       onProgress(
-        10 + Math.round(((i + 1) / (totalFrames + 1)) * 60),
+        10 + Math.round(((i + 1) / (totalFrames + 1)) * 40),
         `Packaging frame ${i + 1}/${totalFrames} assets...`
       );
     }
@@ -81,7 +90,7 @@ export async function exportProjectAsZip(
 
     if (frame.imageUrl) {
       try {
-        const { data, mime, ext } = await urlToArrayBuffer(frame.imageUrl);
+        const { data, ext } = await urlToArrayBuffer(frame.imageUrl);
         assetFilename = `frame_${i + 1}_${Date.now()}.${ext}`;
         if (assetsFolder) {
           assetsFolder.file(assetFilename, data, { binary: true });
@@ -91,18 +100,59 @@ export async function exportProjectAsZip(
       }
     }
 
-    // Strip bulky imageUrl from project manifest and reference relative asset file
+    // Strip bulky imageUrl from manifest and reference asset file
     const { imageUrl, ...restFrame } = frame;
     projectFramesMeta.push({
       ...restFrame,
       assetFilename,
       hasImage: !!assetFilename,
+      videoTimestamp: frame.videoTimestamp,
+      sourceVideoName: frame.sourceVideoName,
     });
   }
 
+  // 2. Package Source Movie Video (if loaded)
+  let videoMeta: any = undefined;
+  const videoSource = exportSettings?.videoSource;
+
+  if (videoSource?.url) {
+    if (onProgress) onProgress(55, 'Packaging source movie video into project...');
+    try {
+      let videoBuffer: ArrayBuffer | null = null;
+      let videoExt = 'mp4';
+
+      if (videoSource.blob) {
+        videoBuffer = await videoSource.blob.arrayBuffer();
+        if (videoSource.blob.type.includes('webm')) videoExt = 'webm';
+      } else {
+        const res = await fetch(videoSource.url);
+        const blob = await res.blob();
+        videoBuffer = await blob.arrayBuffer();
+        if (blob.type.includes('webm')) videoExt = 'webm';
+      }
+
+      if (videoBuffer) {
+        const videoFolder = zip.folder('video');
+        const videoFilename = `source_movie.${videoExt}`;
+        videoFolder?.file(videoFilename, videoBuffer, { binary: true });
+
+        videoMeta = {
+          name: videoSource.name,
+          duration: videoSource.duration,
+          width: videoSource.width,
+          height: videoSource.height,
+          videoFilename: `video/${videoFilename}`,
+        };
+      }
+    } catch (err) {
+      console.warn('Could not bundle source movie into zip:', err);
+    }
+  }
+
+  // 3. Create Manifest
   const manifest = {
     version: PROJECT_VERSION,
-    format: 'cinema_filmstrip_bundle_v1',
+    format: 'cinema_filmstrip_bundle_v2',
     projectName,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -114,32 +164,35 @@ export async function exportProjectAsZip(
     exportQuality: exportSettings?.exportQuality,
     exportFilename: exportSettings?.exportFilename,
     photoPrintConfig: exportSettings?.photoPrintConfig,
+    videoSource: videoMeta,
   };
 
   zip.file('project.json', JSON.stringify(manifest, null, 2));
 
   // Add README
-  const readmeContent = `CINEMA FILM STRIP PROJECT ARCHIVE
-====================================
+  const readmeContent = `CINEMA FILM STRIP PROJECT ARCHIVE (.filmproj)
+==============================================
 Project Name: ${projectName}
 Created: ${new Date().toLocaleString()}
 Frames: ${frames.length}
+Movie Included: ${videoMeta ? `Yes (${videoMeta.name})` : 'None'}
 
-This archive contains:
-- project.json: Full strip styling parameters, sprockets, fonts, frame layouts, filters, pan/zoom transforms, and 15x10cm photo print parameters.
-- assets/: High-resolution image files for each frame.
+Contents:
+- project.json: Strip configuration, geometry, sprockets, and per-frame video timestamps.
+- assets/: Frame photographs and stills.
+- video/: Source movie video file (reloaded automatically into the video scrubber upon import).
 
-You can drag and drop this .${fileExtension} file directly into the Cinema Film Strip Generator to reopen and edit your project anytime!
+You can drag and drop this .${fileExtension} file directly into the Film Strip Generator to resume editing with full video scrubbing.
 `;
   zip.file('README.txt', readmeContent);
 
-  if (onProgress) onProgress(75, 'Compressing archive...');
+  if (onProgress) onProgress(75, 'Compressing project archive...');
 
   const content = await zip.generateAsync(
     {
       type: 'blob',
       compression: 'DEFLATE',
-      compressionOptions: { level: 6 },
+      compressionOptions: { level: 4 }, // Level 4 for fast compression of video files
     },
     (metadata) => {
       if (onProgress) {
@@ -159,86 +212,13 @@ You can drag and drop this .${fileExtension} file directly into the Cinema Film 
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
 
   if (onProgress) onProgress(100, 'Complete!');
 }
 
 /**
- * Exports complete project as a single self-contained JSON file (includes base64 data URLs)
- */
-export async function exportProjectAsJson(
-  config: FilmStripConfig,
-  frames: FrameData[],
-  projectName: string = 'cinema_filmstrip_project',
-  onProgress?: (percent: number, status: string) => void,
-  exportSettings?: ProjectExportSettings
-): Promise<void> {
-  if (onProgress) onProgress(20, 'Preparing JSON project payload...');
-
-  // Convert any blob/remote URLs to robust base64 data URLs so the JSON is fully standalone
-  const serializedFrames: FrameData[] = [];
-
-  for (let i = 0; i < frames.length; i++) {
-    const frame = frames[i];
-    if (onProgress) {
-      onProgress(
-        20 + Math.round(((i + 1) / frames.length) * 60),
-        `Encoding frame ${i + 1}/${frames.length}...`
-      );
-    }
-
-    if (frame.imageUrl && !frame.imageUrl.startsWith('data:')) {
-      try {
-        const res = await fetch(frame.imageUrl);
-        const blob = await res.blob();
-        const dataUrl = await blobToDataUrl(blob);
-        serializedFrames.push({
-          ...frame,
-          imageUrl: dataUrl,
-        });
-      } catch {
-        serializedFrames.push(frame);
-      }
-    } else {
-      serializedFrames.push(frame);
-    }
-  }
-
-  const project: FilmStripProject = {
-    version: PROJECT_VERSION,
-    projectName,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    config,
-    frames: serializedFrames,
-    exportMode: exportSettings?.exportMode,
-    exportMultiplier: exportSettings?.exportMultiplier,
-    exportFormat: exportSettings?.exportFormat,
-    exportQuality: exportSettings?.exportQuality,
-    exportFilename: exportSettings?.exportFilename,
-    photoPrintConfig: exportSettings?.photoPrintConfig,
-  };
-
-  if (onProgress) onProgress(90, 'Generating JSON download...');
-
-  const jsonStr = JSON.stringify(project, null, 2);
-  const blob = new Blob([jsonStr], { type: 'application/json' });
-  const blobUrl = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  const sanitizedName = (projectName || 'filmstrip_project').replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
-  link.download = `${sanitizedName}.filmjson`;
-  link.href = blobUrl;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
-
-  if (onProgress) onProgress(100, 'Complete!');
-}
-
-/**
- * Imports and parses an uploaded project file (.filmproj, .zip, .filmjson, or .json)
+ * Imports and parses an uploaded project file (.filmproj, .zip, or legacy .json)
  */
 export async function importProjectFromFile(
   file: File,
@@ -246,7 +226,7 @@ export async function importProjectFromFile(
 ): Promise<FilmStripProject> {
   const fileName = file.name.toLowerCase();
 
-  // Check if it's a zip / .filmproj archive
+  // Handle Zip / .filmproj Archive
   if (fileName.endsWith('.zip') || fileName.endsWith('.filmproj')) {
     if (onProgress) onProgress(15, 'Reading project archive...');
     const zip = await JSZip.loadAsync(file);
@@ -264,6 +244,26 @@ export async function importProjectFromFile(
       throw new Error('Corrupted project structure in archive');
     }
 
+    // 1. Unpack Movie Video if present
+    let restoredVideoSource: VideoSourceInfo | undefined = undefined;
+    if (parsedManifest.videoSource?.videoFilename) {
+      if (onProgress) onProgress(45, 'Extracting bundled movie video...');
+      const vFile = zip.file(parsedManifest.videoSource.videoFilename) || zip.file(`video/${parsedManifest.videoSource.videoFilename}`);
+      if (vFile) {
+        const vBlob = await vFile.async('blob');
+        const vUrl = URL.createObjectURL(vBlob);
+        restoredVideoSource = {
+          url: vUrl,
+          name: parsedManifest.videoSource.name || 'Restored Movie',
+          duration: parsedManifest.videoSource.duration || 12,
+          width: parsedManifest.videoSource.width || 1280,
+          height: parsedManifest.videoSource.height || 720,
+          blob: vBlob,
+        };
+      }
+    }
+
+    // 2. Unpack Frames
     const reconstructedFrames: FrameData[] = [];
     const rawFrames = parsedManifest.frames;
 
@@ -271,15 +271,14 @@ export async function importProjectFromFile(
       const rf = rawFrames[i];
       if (onProgress) {
         onProgress(
-          35 + Math.round(((i + 1) / rawFrames.length) * 55),
-          `Unpacking image asset ${i + 1}/${rawFrames.length}...`
+          55 + Math.round(((i + 1) / rawFrames.length) * 40),
+          `Unpacking frame ${i + 1}/${rawFrames.length}...`
         );
       }
 
       let reconstructedImageUrl: string | null = null;
 
       if (rf.assetFilename) {
-        // Look in assets folder or root
         const assetFile = zip.file(`assets/${rf.assetFilename}`) || zip.file(rf.assetFilename);
         if (assetFile) {
           const blob = await assetFile.async('blob');
@@ -311,6 +310,8 @@ export async function importProjectFromFile(
         },
         customTextTop: rf.customTextTop,
         customTextBottom: rf.customTextBottom,
+        videoTimestamp: typeof rf.videoTimestamp === 'number' ? rf.videoTimestamp : undefined,
+        sourceVideoName: rf.sourceVideoName,
       });
     }
 
@@ -329,11 +330,13 @@ export async function importProjectFromFile(
       exportQuality: parsedManifest.exportQuality,
       exportFilename: parsedManifest.exportFilename,
       photoPrintConfig: parsedManifest.photoPrintConfig,
+      videoSource: restoredVideoSource,
+      videoBlob: restoredVideoSource?.blob,
     };
   }
 
-  // Otherwise assume JSON (.filmjson or .json)
-  if (onProgress) onProgress(30, 'Reading JSON project file...');
+  // Legacy JSON fallback
+  if (onProgress) onProgress(30, 'Reading project file...');
   const text = await file.text();
   const parsed = JSON.parse(text);
 
@@ -356,5 +359,6 @@ export async function importProjectFromFile(
     exportQuality: parsed.exportQuality,
     exportFilename: parsed.exportFilename,
     photoPrintConfig: parsed.photoPrintConfig,
+    videoSource: (parsed.videoSource && parsed.videoSource.url && parsed.videoSource.url.trim() !== '') ? parsed.videoSource : undefined,
   };
 }
