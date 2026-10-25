@@ -42,6 +42,7 @@ interface FrameBottomBarProps {
   onMoveFrame?: (direction: 'left' | 'right') => void;
   onSelectFrame: (index: number | null) => void;
   onClose: () => void;
+  variant?: 'docked' | 'sidebar';
 }
 
 export const FrameBottomBar: React.FC<FrameBottomBarProps> = ({
@@ -56,7 +57,9 @@ export const FrameBottomBar: React.FC<FrameBottomBarProps> = ({
   onMoveFrame,
   onSelectFrame,
   onClose,
+  variant = 'docked',
 }) => {
+  const isSidebar = variant === 'sidebar';
   // Local numeric input states for responsive editing before blur
   const [zoomInput, setZoomInput] = useState<string>(frame ? frame.zoom.toFixed(2) : '1.00');
   const [rotationInput, setRotationInput] = useState<string>(frame ? String(frame.rotation) : '0');
@@ -76,9 +79,13 @@ export const FrameBottomBar: React.FC<FrameBottomBarProps> = ({
     return (
       <div 
         id="frame-bottom-bar-empty"
-        className="w-full bg-zinc-950 border-t border-zinc-800 px-6 py-5 flex items-center justify-between shrink-0 text-xs text-zinc-500 shadow-2xl min-h-[140px]"
+        className={
+          isSidebar
+            ? 'w-full bg-transparent text-xs text-zinc-500 select-none'
+            : 'w-full bg-zinc-950 border-t border-zinc-800 px-3 py-3 sm:px-6 sm:py-5 flex items-center justify-between shrink-0 text-xs text-zinc-500 shadow-2xl sm:min-h-[140px] max-h-[40dvh] overflow-y-auto overscroll-contain lg:max-h-none lg:overflow-visible'
+        }
       >
-        <div className="max-w-[1920px] mx-auto w-full grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+        <div className={`max-w-[1920px] mx-auto w-full grid grid-cols-1 ${isSidebar ? '' : 'md:grid-cols-3'} gap-6 items-center`}>
           <div className="flex items-center gap-3 bg-zinc-900/60 p-3.5 rounded-xl border border-zinc-800/80">
             <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg border border-amber-500/20 shrink-0">
               <Move className="w-5 h-5" />
@@ -257,15 +264,19 @@ export const FrameBottomBar: React.FC<FrameBottomBarProps> = ({
   return (
     <div
       id="frame-options-bottom-bar"
-      className="w-full bg-zinc-950 border-t border-zinc-800/90 shadow-2xl z-20 shrink-0 text-zinc-100 select-none py-3.5 px-4 md:px-6"
+      className={
+        isSidebar
+          ? 'w-full bg-transparent text-zinc-100 select-none'
+          : 'w-full bg-zinc-950 border-t border-zinc-800/90 shadow-2xl z-20 shrink-0 text-zinc-100 select-none py-2 px-3 sm:py-3.5 sm:px-4 md:px-6 max-h-[45dvh] lg:max-h-none overflow-y-auto overscroll-contain lg:overflow-visible'
+      }
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="max-w-[1920px] mx-auto grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 items-start">
+      <div className={`max-w-[1920px] mx-auto grid grid-cols-1 ${isSidebar ? '' : 'lg:grid-cols-3'} gap-4 lg:gap-6 items-start`}>
         
         {/* ========================================================================= */}
         {/* COLUMN 1: FRAME IDENTITY, NAVIGATION & TRANSFORMS (ZOOM, ROTATION, PAN) */}
         {/* ========================================================================= */}
-        <div className="space-y-2.5 lg:border-r lg:border-zinc-800/80 lg:pr-5">
+        <div className={`space-y-2.5 ${isSidebar ? '' : 'lg:border-r lg:border-zinc-800/80 lg:pr-5'}`}>
           {/* Header Row: Frame Badge, Prev/Next, Replace/Upload, Swap, Clear */}
           <div className="flex items-center justify-between gap-2 pb-1 border-b border-zinc-800/60">
             <div className="flex items-center gap-1.5">
@@ -515,7 +526,7 @@ export const FrameBottomBar: React.FC<FrameBottomBarProps> = ({
         {/* ========================================================================= */}
         {/* COLUMN 2: COLOR GRADING, CINEMA PRESETS & IMAGE FILTERS */}
         {/* ========================================================================= */}
-        <div className="space-y-2.5 lg:border-r lg:border-zinc-800/80 lg:pr-5">
+        <div className={`space-y-2.5 ${isSidebar ? '' : 'lg:border-r lg:border-zinc-800/80 lg:pr-5'}`}>
           {/* Header Row: Presets and B&W quick toggle */}
           <div className="flex items-center justify-between gap-1 pb-1 border-b border-zinc-800/60">
             <span className="text-[11px] font-semibold text-zinc-300 flex items-center gap-1">

@@ -21,13 +21,13 @@ import {
   ArrowLeft,
   ArrowRight,
   Film,
+  PanelLeft,
   Undo2,
   Redo2
 } from 'lucide-react';
 import { FilmStripConfig, FrameData, VideoSourceInfo } from '../types';
 import { calculateFilmStripGeometry } from '../utils/canvasExport';
 import { computeImageFit } from '../utils/geometry';
-import { FrameBottomBar } from './FrameBottomBar';
 import { VideoTimelineDeck } from './VideoTimelineDeck';
 import { formatTimecode } from '../utils/videoExtractor';
 
@@ -38,7 +38,6 @@ interface FilmStripPreviewProps {
   onSelectFrame: (index: number | null) => void;
   onUpdateFrame: (index: number, data: Partial<FrameData>) => void;
   onUploadImageForFrame: (index: number, file: File) => void;
-  onRemoveImageFromFrame: (index: number) => void;
   onMoveFrame?: (fromIndex: number, direction: 'left' | 'right') => void;
   onOpenProjectModal?: () => void;
   onOpenExportModal?: () => void;
@@ -58,6 +57,8 @@ interface FilmStripPreviewProps {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  isMobileSidebarOpen?: boolean;
+  onToggleMobileSidebar?: () => void;
 }
 
 export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
@@ -67,7 +68,6 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
   onSelectFrame,
   onUpdateFrame,
   onUploadImageForFrame,
-  onRemoveImageFromFrame,
   onMoveFrame,
   onOpenProjectModal,
   onOpenExportModal,
@@ -80,6 +80,8 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
   onRedo,
   canUndo,
   canRedo,
+  isMobileSidebarOpen,
+  onToggleMobileSidebar,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
@@ -107,15 +109,15 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
 
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const availableWidth = entry.contentRect.width - 48; // padding
-        const availableHeight = entry.contentRect.height - 48;
+        const availableWidth = Math.max(0, entry.contentRect.width - 16);
+        const availableHeight = Math.max(0, entry.contentRect.height - 16);
         
         const scaleX = availableWidth / geo.filmWidth;
         const scaleY = availableHeight / geo.filmHeight;
         
         // Pick best fitting scale capped at 1.0 (or slightly larger if very small)
-        const bestScale = Math.min(1.1, Math.max(0.35, Math.min(scaleX, scaleY)));
-        setViewportScale(bestScale);
+        const bestScale = Math.min(1.1, Math.max(0.05, Math.min(scaleX, scaleY)));
+        setViewportScale(parseFloat(bestScale.toFixed(3)));
         setStagePan({ x: 0, y: 0 });
       }
     });
@@ -167,7 +169,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
 
         const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
         setViewportScale((prev) => {
-          const next = Math.min(4.0, Math.max(0.15, prev * zoomFactor));
+          const next = Math.min(4.0, Math.max(0.05, prev * zoomFactor));
           return parseFloat(next.toFixed(3));
         });
         setFitToWidth(false);
@@ -328,15 +330,36 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
   return (
     <main
       id="film-strip-preview-area"
-      className="flex-1 flex flex-col h-full overflow-hidden bg-zinc-950 text-zinc-100 relative select-none"
+      className="flex-1 flex flex-col h-full min-h-0 min-w-0 overflow-hidden bg-zinc-950 text-zinc-100 relative select-none"
     >
       {/* Top Preview Control Bar */}
       <div 
-        className="h-12 border-b border-zinc-800/80 bg-zinc-900/60 px-4 flex items-center justify-between shrink-0 z-20 backdrop-blur-sm"
+        className="h-12 border-b border-zinc-800/80 bg-zinc-900/60 px-2 sm:px-4 flex items-center justify-between gap-2 shrink-0 z-20 backdrop-blur-sm overflow-x-auto scrollbar-none"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-zinc-400 font-medium flex items-center gap-1.5">
+        <div className="flex items-center gap-3 shrink-0">
+          {onToggleMobileSidebar && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleMobileSidebar();
+              }}
+              className={`lg:hidden p-1.5 rounded-md border transition-colors ${
+                isMobileSidebarOpen
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border-zinc-700/80'
+              }`}
+              title="Toggle Controls Panel"
+              aria-label="Toggle controls panel"
+              aria-expanded={!!isMobileSidebarOpen}
+              aria-controls="sidebar-film-controls"
+            >
+              <PanelLeft className="w-4 h-4" />
+            </button>
+          )}
+
+          <span className="text-xs text-zinc-400 font-medium hidden sm:flex items-center gap-1.5">
             <Camera className="w-3.5 h-3.5 text-amber-400" />
             <span className="hidden sm:inline">Strip Dimensions:</span>
             <span className="font-mono text-zinc-200 bg-zinc-800/80 px-2 py-0.5 rounded text-[11px] border border-zinc-700/50">
@@ -352,7 +375,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
         </div>
 
         {/* Viewport Zoom & Fit Controls */}
-        <div className="flex items-center gap-1.5 bg-zinc-950/80 p-1 rounded-lg border border-zinc-800">
+        <div className="flex items-center gap-1.5 bg-zinc-950/80 p-1 rounded-lg border border-zinc-800 shrink-0">
           {(stagePan.x !== 0 || stagePan.y !== 0) && (
             <button
               onClick={(e) => {
@@ -363,7 +386,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
               title="Reset Canvas Pan Position"
             >
               <Crosshair className="w-3 h-3" />
-              <span>Center</span>
+              <span className="hidden sm:inline">Center</span>
             </button>
           )}
 
@@ -390,7 +413,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
             onClick={(e) => {
               e.stopPropagation();
               setFitToWidth(false);
-              setViewportScale((s) => Math.max(0.25, s - 0.15));
+              setViewportScale((s) => Math.max(0.05, s - 0.15));
             }}
             className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors"
             title="Zoom Out Canvas"
@@ -420,7 +443,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
               setFitToWidth(false);
               setViewportScale(1.0);
             }}
-            className={`px-2 py-1 text-[11px] rounded transition-colors ${
+            className={`hidden sm:inline-flex px-2 py-1 text-[11px] rounded transition-colors items-center ${
               !fitToWidth && viewportScale === 1.0
                 ? 'bg-zinc-800 text-amber-400 font-bold'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
@@ -432,7 +455,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
         </div>
 
         {/* Action Buttons: Movie Deck, Save/Load Project & Export */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {onUndo && (
             <div className="flex items-center gap-0.5 bg-zinc-950/80 p-1 rounded-lg border border-zinc-800">
               <button
@@ -468,7 +491,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
               e.stopPropagation();
               onToggleVideoDeck();
             }}
-            className={`px-2.5 py-1 text-xs rounded-lg border flex items-center gap-1.5 transition-all font-medium cursor-pointer ${
+            className={`px-2.5 py-1 text-xs rounded-lg border hidden sm:flex items-center gap-1.5 transition-all font-medium cursor-pointer ${
               isVideoDeckOpen
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm ring-1 ring-amber-500/30'
                 : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border-zinc-700/80 hover:text-white'
@@ -489,7 +512,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                 e.stopPropagation();
                 onOpenProjectModal();
               }}
-              className="px-2.5 py-1 text-xs bg-zinc-900 hover:bg-zinc-800 text-amber-300 rounded-lg border border-zinc-700/80 flex items-center gap-1.5 transition-colors font-medium cursor-pointer"
+              className="px-2.5 py-1 text-xs bg-zinc-900 hover:bg-zinc-800 text-amber-300 rounded-lg border border-zinc-700/80 hidden sm:flex items-center gap-1.5 transition-colors font-medium cursor-pointer"
               title="Save or Load Project (.filmproj, .zip, .filmjson)"
             >
               <Archive className="w-3.5 h-3.5 text-amber-400" />
@@ -527,7 +550,7 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
           }
         }}
         style={{ backgroundColor: '#A8A8A8' }}
-        className={`flex-1 w-full h-full overflow-hidden flex items-center justify-center p-8 relative film-grain-bg select-none ${
+        className={`flex-1 min-h-0 w-full overflow-hidden flex items-center justify-center p-2 sm:p-4 lg:p-8 relative film-grain-bg select-none touch-none ${
           isSpacePressed
             ? isStageDragging
               ? 'cursor-grabbing'
@@ -972,12 +995,12 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
       {/* Status Bar: Active Frame Indicators & Keyboard Shortcuts */}
       <div 
         id="film-status-bar"
-        className="h-9 border-t border-zinc-800/80 bg-zinc-900/90 px-4 flex items-center justify-between shrink-0 text-xs text-zinc-400 z-10"
+        className="h-9 border-t border-zinc-800/80 bg-zinc-900/90 px-2 sm:px-4 flex items-center justify-between gap-2 shrink-0 text-xs text-zinc-400 z-10"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-zinc-300 text-[11px]">Selected Frame:</span>
-          <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="font-semibold text-zinc-300 text-[11px] hidden sm:inline shrink-0">Selected Frame:</span>
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none min-w-0 pb-0.5">
             {Array.from({ length: config.frameCount }).map((_, i) => {
               const hasImg = !!frames[i]?.imageUrl;
               const isSelected = selectedFrameIndex === i;
@@ -1018,21 +1041,6 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
           <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Esc</kbd> Deselect</span>
         </div>
       </div>
-
-      {/* Frame Options Bottom Bar (Docked directly below Status Bar) */}
-      <FrameBottomBar
-        frame={selectedFrameIndex !== null ? frames[selectedFrameIndex] : null}
-        frameIndex={selectedFrameIndex}
-        totalFrames={config.frameCount}
-        frameWidth={geo.frameWidth}
-        frameHeight={geo.frameHeight}
-        onUpdate={(updated) => selectedFrameIndex !== null && onUpdateFrame(selectedFrameIndex, updated)}
-        onRemoveImage={() => selectedFrameIndex !== null && onRemoveImageFromFrame(selectedFrameIndex)}
-        onReplaceImage={() => selectedFrameIndex !== null && fileInputRefs.current[selectedFrameIndex]?.click()}
-        onMoveFrame={(dir) => selectedFrameIndex !== null && onMoveFrame?.(selectedFrameIndex, dir)}
-        onSelectFrame={onSelectFrame}
-        onClose={() => onSelectFrame(null)}
-      />
     </main>
   );
 };

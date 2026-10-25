@@ -22,12 +22,22 @@ import {
   FolderOpen,
   HardDrive,
   Printer,
-  Scissors
+  Scissors,
+  X
 } from 'lucide-react';
-import { FilmStripConfig, AspectRatioType, DEFAULT_CONFIG } from '../types';
+import { FilmStripConfig, AspectRatioType, DEFAULT_CONFIG, FrameData } from '../types';
+import { FrameBottomBar } from './FrameBottomBar';
+import { calculateFilmStripGeometry } from '../utils/canvasExport';
 
 interface SidebarControlsProps {
   config: FilmStripConfig;
+  frames: FrameData[];
+  selectedFrameIndex: number | null;
+  onSelectFrame: (index: number | null) => void;
+  onUpdateFrame: (index: number, data: Partial<FrameData>) => void;
+  onRemoveImageFromFrame: (index: number) => void;
+  onUploadImageForFrame: (index: number, file: File) => void;
+  onMoveFrame?: (fromIndex: number, direction: 'left' | 'right') => void;
   onUpdateConfig: (updated: Partial<FilmStripConfig>) => void;
   onResetConfig: () => void;
   onLoadDemoImages: () => void;
@@ -40,10 +50,19 @@ interface SidebarControlsProps {
   filledFramesCount: number;
   totalFramesCount: number;
   lastAutoSavedTime: Date | null;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const SidebarControls: React.FC<SidebarControlsProps> = ({
   config,
+  frames,
+  selectedFrameIndex,
+  onSelectFrame,
+  onUpdateFrame,
+  onRemoveImageFromFrame,
+  onUploadImageForFrame,
+  onMoveFrame,
   onUpdateConfig,
   onResetConfig,
   onLoadDemoImages,
@@ -56,12 +75,25 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
   filledFramesCount,
   totalFramesCount,
   lastAutoSavedTime,
+  isMobileOpen = false,
+  onCloseMobile,
 }) => {
+  // Collapsible group state
+  const [openGroups, setOpenGroups] = useState({
+    filmstripSettings: true,
+    frameSettings: true,
+  });
+
+  const toggleGroup = (group: keyof typeof openGroups) => {
+    setOpenGroups((prev) => ({ ...prev, [group]: !prev[group] }));
+  };
+
   // Collapsible section state
   const [openSections, setOpenSections] = useState({
     frames: true,
     stripStyle: true,
     textNumbering: true,
+    edgeCodes: true,
     presets: false,
     export: true,
   });
@@ -71,6 +103,10 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
   };
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const frameFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const geo = calculateFilmStripGeometry(config, 1);
+  const selectedFrame = selectedFrameIndex !== null ? frames[selectedFrameIndex] ?? null : null;
 
   // Preset definitions
   const applyPreset = (presetName: string) => {
@@ -211,16 +247,19 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
   return (
     <aside
       id="sidebar-film-controls"
-      className="w-full lg:w-84 xl:w-92 bg-zinc-900 border-r border-zinc-800 flex flex-col h-full overflow-hidden shrink-0 select-none text-zinc-100"
+      className={`fixed lg:static inset-y-0 left-0 z-50 w-[85vw] max-w-[20rem] lg:max-w-none lg:w-84 xl:w-92 bg-zinc-900 border-r border-zinc-800 flex flex-col lg:h-full overflow-hidden shrink-0 select-none text-zinc-100 transition-transform duration-200 ease-out shadow-2xl lg:shadow-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] lg:pt-0 lg:pb-0 ${
+        isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      }`}
+      aria-label="Film strip controls"
     >
       {/* Sidebar Header */}
-      <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/90 backdrop-blur-md">
-        <div className="flex items-center gap-2.5">
+      <div className="p-3 sm:p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/90 backdrop-blur-md">
+        <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-zinc-950 font-black shadow-md shadow-amber-500/20">
             <Film className="w-4 h-4" />
           </div>
-          <div>
-            <h1 className="text-sm font-bold tracking-tight text-zinc-100 leading-none">
+          <div className="min-w-0">
+            <h1 className="text-sm font-bold tracking-tight text-zinc-100 leading-none truncate">
               Cinema Film Strip
             </h1>
             <div className="flex items-center gap-1.5 mt-0.5">
@@ -232,7 +271,7 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             id="btn-open-project-manager"
             onClick={onOpenProjectModal}
@@ -240,7 +279,7 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
             className="p-1.5 hover:bg-zinc-800 text-amber-400 hover:text-amber-300 rounded-md transition-colors text-xs flex items-center gap-1 border border-zinc-700/60"
           >
             <Archive className="w-3.5 h-3.5" />
-            <span className="text-[11px] font-semibold pr-0.5">Project</span>
+            <span className="text-[11px] font-semibold pr-0.5 hidden sm:inline">Project</span>
           </button>
 
           <button
@@ -250,6 +289,18 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
+
+          {onCloseMobile && (
+            <button
+              type="button"
+              onClick={onCloseMobile}
+              title="Close Controls Panel"
+              aria-label="Close controls panel"
+              className="lg:hidden p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded-md transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -315,7 +366,22 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
       </div>
 
       {/* Scrollable Accordions */}
-      <div className="flex-1 overflow-y-auto divide-y divide-zinc-800/60 text-xs">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain text-xs">
+        {/* ===== GROUP: FILMSTRIP SETTINGS ===== */}
+        <div>
+          <button
+            type="button"
+            onClick={() => toggleGroup('filmstripSettings')}
+            className="w-full flex items-center justify-between px-3.5 py-3 bg-zinc-950/60 border-b border-zinc-800 text-[11px] font-bold uppercase tracking-wider text-amber-400/90 hover:bg-zinc-900/80 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <Film className="w-4 h-4 text-amber-400" />
+              Filmstrip Settings
+            </span>
+            {openGroups.filmstripSettings ? <ChevronUp className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
+          </button>
+          {openGroups.filmstripSettings && (
+            <div className="divide-y divide-zinc-800/60">
         {/* SECTION 1: Frame Count & Dimensions */}
         <div className="p-3.5 space-y-3">
           <button
@@ -939,7 +1005,7 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
           >
             <span className="flex items-center gap-2">
               <Type className="w-4 h-4 text-amber-400" />
-              Text, Numbering & Edge Codes
+              Text & Numbering
             </span>
             {openSections.textNumbering ? <ChevronUp className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
           </button>
@@ -1148,7 +1214,25 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+        </div>
 
+        {/* SECTION 3b: Edge & Codes */}
+        <div className="p-3.5 space-y-3">
+          <button
+            onClick={() => toggleSection('edgeCodes')}
+            className="w-full flex items-center justify-between font-semibold text-zinc-200 hover:text-white"
+          >
+            <span className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-amber-400" />
+              Edge & Codes
+            </span>
+            {openSections.edgeCodes ? <ChevronUp className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
+          </button>
+
+          {openSections.edgeCodes && (
+            <div className="space-y-3 pt-1 animate-in fade-in duration-150">
               {/* Film Stock Branding & Edge Marks */}
               <div className="space-y-2 bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800">
                 <div className="flex items-center justify-between">
@@ -1231,6 +1315,61 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
                   <div className="text-[10px] text-zinc-400 mt-0.5">{p.desc}</div>
                 </button>
               ))}
+            </div>
+          )}
+        </div>
+            </div>
+          )}
+        </div>
+
+        {/* ===== GROUP: FRAME SETTINGS ===== */}
+        <div className="border-t border-zinc-800">
+          <button
+            type="button"
+            onClick={() => toggleGroup('frameSettings')}
+            className="w-full flex items-center justify-between px-3.5 py-3 bg-zinc-950/60 border-b border-zinc-800 text-[11px] font-bold uppercase tracking-wider text-amber-400/90 hover:bg-zinc-900/80 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-amber-400" />
+              Frame Settings
+            </span>
+            {openGroups.frameSettings ? <ChevronUp className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
+          </button>
+          {openGroups.frameSettings && (
+            <div className="p-2">
+              <input
+                ref={frameFileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file && selectedFrameIndex !== null) {
+                    onUploadImageForFrame(selectedFrameIndex, file);
+                  }
+                  e.target.value = '';
+                }}
+              />
+              <FrameBottomBar
+                variant="sidebar"
+                frame={selectedFrame}
+                frameIndex={selectedFrameIndex}
+                totalFrames={config.frameCount}
+                frameWidth={geo.frameWidth}
+                frameHeight={geo.frameHeight}
+                onUpdate={(updated) =>
+                  selectedFrameIndex !== null && onUpdateFrame(selectedFrameIndex, updated)
+                }
+                onRemoveImage={() =>
+                  selectedFrameIndex !== null && onRemoveImageFromFrame(selectedFrameIndex)
+                }
+                onReplaceImage={() => frameFileInputRef.current?.click()}
+                onMoveFrame={(dir) =>
+                  selectedFrameIndex !== null && onMoveFrame?.(selectedFrameIndex, dir)
+                }
+                onSelectFrame={onSelectFrame}
+                onClose={() => onSelectFrame(null)}
+              />
             </div>
           )}
         </div>

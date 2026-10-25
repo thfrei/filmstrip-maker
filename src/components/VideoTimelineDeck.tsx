@@ -422,7 +422,7 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
 
   if (!isOpen) {
     return (
-      <div className="fixed bottom-14 right-6 z-40">
+      <div className="hidden sm:block fixed bottom-14 right-6 z-40">
         <button
           onClick={onToggleOpen}
           className="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold text-xs uppercase tracking-wider rounded-xl shadow-2xl shadow-amber-500/30 border border-amber-300 cursor-pointer transition-all hover:scale-105 active:scale-95"
@@ -441,7 +441,7 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
   return (
     <div 
       id="video-timeline-deck"
-      className="bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800 shadow-2xl z-30 transition-all select-none"
+      className="fixed inset-x-0 bottom-0 z-40 max-h-[70dvh] overflow-y-auto overscroll-contain bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800 shadow-2xl transition-all select-none pb-[env(safe-area-inset-bottom)] lg:static lg:inset-auto lg:z-30 lg:max-h-none lg:overflow-visible lg:pb-0"
       onClick={(e) => e.stopPropagation()}
     >
       <input
@@ -453,11 +453,11 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
       />
 
       {/* 1. TOP HEADER STRIP */}
-      <div className="h-10 px-4 border-b border-zinc-800/80 flex items-center justify-between text-xs bg-zinc-900/60">
-        <div className="flex items-center gap-3">
+      <div className="h-10 px-2 sm:px-4 border-b border-zinc-800/80 flex items-center justify-between gap-2 text-xs bg-zinc-900/60 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-2 font-mono text-amber-400 font-semibold tracking-wide">
             <Film className="w-4 h-4 text-amber-500" />
-            <span>CINEMA FRAME EXTRACTOR</span>
+            <span className="hidden sm:inline">CINEMA FRAME EXTRACTOR</span>
           </div>
 
           <div className="hidden sm:flex items-center gap-2 text-zinc-400 text-[11px]">
@@ -490,7 +490,7 @@ export const VideoTimelineDeck: React.FC<VideoTimelineDeckProps> = ({
         </div>
 
         {/* Quick Deck Actions */}
-        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={(e) => {

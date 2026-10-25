@@ -47,6 +47,7 @@ export default function App() {
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState<boolean>(false);
   const [isVideoDeckOpen, setIsVideoDeckOpen] = useState<boolean>(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [videoSource, setVideoSource] = useState<VideoSourceInfo | null>(null);
   const [isLoadedFromStorage, setIsLoadedFromStorage] = useState<boolean>(false);
   const [lastAutoSavedTime, setLastAutoSavedTime] = useState<Date | null>(null);
@@ -317,6 +318,8 @@ export default function App() {
           setIsExportModalOpen(false);
         } else if (isProjectModalOpen) {
           setIsProjectModalOpen(false);
+        } else if (isMobileSidebarOpen) {
+          setIsMobileSidebarOpen(false);
         } else {
           setSelectedFrameIndex(null);
         }
@@ -373,6 +376,7 @@ export default function App() {
     config.frameCount,
     isExportModalOpen,
     isProjectModalOpen,
+    isMobileSidebarOpen,
     handleRemoveImageFromFrame,
     handleUpdateFrame,
     handleMoveFrame,
@@ -385,23 +389,50 @@ export default function App() {
   return (
     <div
       id="cinema-app-root"
-      className="flex flex-col lg:flex-row h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans"
+      className="flex flex-col lg:flex-row h-screen supports-[height:100dvh]:h-[100dvh] w-full overflow-hidden bg-zinc-950 text-zinc-100 font-sans"
     >
+      {/* Mobile drawer backdrop */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-[45] bg-black/60 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Left Configuration & Controls Sidebar */}
       <SidebarControls
         config={config}
+        frames={frames}
+        selectedFrameIndex={selectedFrameIndex}
+        onSelectFrame={setSelectedFrameIndex}
+        onUpdateFrame={handleUpdateFrame}
+        onRemoveImageFromFrame={handleRemoveImageFromFrame}
+        onUploadImageForFrame={handleUploadImageForFrame}
+        onMoveFrame={handleMoveFrame}
         onUpdateConfig={handleUpdateConfig}
         onResetConfig={handleResetConfig}
         onLoadDemoImages={handleLoadDemoImages}
         onBatchUpload={handleBatchUpload}
         onClearAllImages={handleClearAllImages}
-        onOpenExportModal={() => setIsExportModalOpen(true)}
-        onOpenProjectModal={() => setIsProjectModalOpen(true)}
-        onToggleMovieDeck={() => setIsVideoDeckOpen((v) => !v)}
+        onOpenExportModal={() => {
+          setIsMobileSidebarOpen(false);
+          setIsExportModalOpen(true);
+        }}
+        onOpenProjectModal={() => {
+          setIsMobileSidebarOpen(false);
+          setIsProjectModalOpen(true);
+        }}
+        onToggleMovieDeck={() => {
+          setIsMobileSidebarOpen(false);
+          setIsVideoDeckOpen((v) => !v);
+        }}
         isVideoLoaded={!!videoSource}
         filledFramesCount={filledFramesCount}
         totalFramesCount={config.frameCount}
         lastAutoSavedTime={lastAutoSavedTime}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
       {/* Main Interactive Film Strip Canvas Preview Area */}
@@ -412,7 +443,6 @@ export default function App() {
         onSelectFrame={setSelectedFrameIndex}
         onUpdateFrame={handleUpdateFrame}
         onUploadImageForFrame={handleUploadImageForFrame}
-        onRemoveImageFromFrame={handleRemoveImageFromFrame}
         onMoveFrame={handleMoveFrame}
         onOpenProjectModal={() => setIsProjectModalOpen(true)}
         onOpenExportModal={() => setIsExportModalOpen(true)}
@@ -425,6 +455,8 @@ export default function App() {
         onRedo={redo}
         canUndo={canUndo}
         canRedo={canRedo}
+        isMobileSidebarOpen={isMobileSidebarOpen}
+        onToggleMobileSidebar={() => setIsMobileSidebarOpen((v) => !v)}
       />
 
       {/* High-Resolution Export Modal */}
