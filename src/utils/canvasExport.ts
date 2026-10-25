@@ -1,4 +1,5 @@
 import { FilmStripConfig, FrameData, ExportOptions, PhotoPrintConfig } from '../types';
+import { computeImageFit } from './geometry';
 
 /**
  * Loads an image from a URL with crossOrigin support and resolves HTMLImageElement
@@ -300,19 +301,13 @@ export async function renderFilmStripToCanvas(
       ctx.rect(frameX, frameY, geo.frameWidth, geo.frameHeight);
       ctx.clip();
       
-      // Calculate cover dimensions for image
-      const imgAspect = img.naturalWidth / (img.naturalHeight || 1);
-      const frameAspect = geo.frameWidth / geo.frameHeight;
-      
-      let baseW = geo.frameWidth;
-      let baseH = geo.frameHeight;
-      if (imgAspect > frameAspect) {
-        baseH = geo.frameHeight;
-        baseW = geo.frameHeight * imgAspect;
-      } else {
-        baseW = geo.frameWidth;
-        baseH = geo.frameWidth / imgAspect;
-      }
+      // Calculate cover dimensions for image (single source of truth)
+      const { baseW, baseH } = computeImageFit(
+        img.naturalWidth,
+        img.naturalHeight,
+        geo.frameWidth,
+        geo.frameHeight
+      );
       
       // Apply filters if supported by context
       const f = frameData.filters || { brightness: 100, contrast: 100, saturation: 100, sepia: 0, grayscale: 0, vintageWarmth: 0 };

@@ -1,4 +1,4 @@
-!! Disclaimer: All this is vibe coded with Google Gemini ai studio !!
+!! Disclaimer: Most of is vibe coded with !!
 
 # Cinema Film Strip Generator 🎞️
 

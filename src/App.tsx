@@ -1,82 +1,77 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { 
-  FilmStripConfig, 
-  FrameData, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  FilmStripConfig,
+  FrameData,
   FilmStripProject,
   PhotoPrintConfig,
   VideoSourceInfo,
-  DEFAULT_CONFIG, 
-  DEFAULT_FILTERS,
-  DEFAULT_PHOTO_PRINT_CONFIG
 } from './types';
 import { SidebarControls } from './components/SidebarControls';
 import { FilmStripPreview } from './components/FilmStripPreview';
 import { ExportModal } from './components/ExportModal';
 import { ProjectSaveLoadModal } from './components/ProjectSaveLoadModal';
-import { SAMPLE_CINEMA_IMAGES } from './utils/sampleImages';
 import { loadCurrentStateFromStorage, saveCurrentStateToStorage } from './utils/storage';
+import {
+  documentReducer,
+  createInitialState,
+  documentStateFromProject,
+  ExportSettings,
+} from './state/documentReducer';
+import { useUndoableReducer } from './state/useUndoableReducer';
 
 export default function App() {
-  const [config, setConfig] = useState<FilmStripConfig>(DEFAULT_CONFIG);
-  const [projectName, setProjectName] = useState<string>('Cinema Film Reel');
-  const [isLoadedFromStorage, setIsLoadedFromStorage] = useState<boolean>(false);
-  const [lastAutoSavedTime, setLastAutoSavedTime] = useState<Date | null>(null);
+  const {
+    state,
+    dispatch,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    reset,
+  } = useUndoableReducer(documentReducer, createInitialState());
 
-  // Persistent Export Settings State
-  const [exportMode, setExportMode] = useState<'photo_print' | 'single_strip'>('photo_print');
-  const [exportMultiplier, setExportMultiplier] = useState<number>(2);
-  const [exportFormat, setExportFormat] = useState<'image/png' | 'image/jpeg' | 'image/webp'>('image/jpeg');
-  const [exportQuality, setExportQuality] = useState<number>(0.95);
-  const [exportFilename, setExportFilename] = useState<string>('filmstrip-15x10cm-photo');
-  const [photoPrintConfig, setPhotoPrintConfig] = useState<PhotoPrintConfig>(DEFAULT_PHOTO_PRINT_CONFIG);
+  const {
+    config,
+    frames,
+    projectName,
+    exportMode,
+    exportMultiplier,
+    exportFormat,
+    exportQuality,
+    exportFilename,
+    photoPrintConfig,
+  } = state;
 
-  // Initialize frames array with default empty data
-  const [frames, setFrames] = useState<FrameData[]>(() => {
-    return Array.from({ length: DEFAULT_CONFIG.frameCount }).map((_, i) => ({
-      id: `frame-${i}-${Date.now()}`,
-      imageUrl: null,
-      panX: 0,
-      panY: 0,
-      zoom: 1,
-      rotation: 0,
-      flipH: false,
-      flipV: false,
-      filters: { ...DEFAULT_FILTERS },
-    }));
-  });
-
+  // ---- UI / media state (NOT part of the undoable document) ----
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(0);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState<boolean>(false);
-
-  // Movie Frame Extractor Video Source state
-  const [videoSource, setVideoSource] = useState<VideoSourceInfo | null>(null);
   const [isVideoDeckOpen, setIsVideoDeckOpen] = useState<boolean>(false);
+  const [videoSource, setVideoSource] = useState<VideoSourceInfo | null>(null);
+  const [isLoadedFromStorage, setIsLoadedFromStorage] = useState<boolean>(false);
+  const [lastAutoSavedTime, setLastAutoSavedTime] = useState<Date | null>(null);
 
-  // Load saved state from IndexedDB across page reloads on initial mount
+  // Load saved state from IndexedDB across page reloads (not undoable).
   useEffect(() => {
     let isMounted = true;
     loadCurrentStateFromStorage()
       .then((savedProject) => {
         if (!isMounted) return;
-        if (savedProject && savedProject.config && Array.isArray(savedProject.frames) && savedProject.frames.length > 0) {
-          setConfig({ ...DEFAULT_CONFIG, ...savedProject.config });
-          setFrames(savedProject.frames);
-          if (savedProject.projectName) {
-            setProjectName(savedProject.projectName);
-          }
+        if (
+          savedProject &&
+          savedProject.config &&
+          Array.isArray(savedProject.frames) &&
+          savedProject.frames.length > 0
+        ) {
+          reset(documentStateFromProject(savedProject));
           if (savedProject.updatedAt) {
             setLastAutoSavedTime(new Date(savedProject.updatedAt));
           }
-          if (savedProject.exportMode) setExportMode(savedProject.exportMode);
-          if (savedProject.exportMultiplier) setExportMultiplier(savedProject.exportMultiplier);
-          if (savedProject.exportFormat) setExportFormat(savedProject.exportFormat);
-          if (savedProject.exportQuality !== undefined) setExportQuality(savedProject.exportQuality);
-          if (savedProject.exportFilename) setExportFilename(savedProject.exportFilename);
-          if (savedProject.photoPrintConfig) {
-            setPhotoPrintConfig({ ...DEFAULT_PHOTO_PRINT_CONFIG, ...savedProject.photoPrintConfig });
-          }
-          if (savedProject.videoSource && savedProject.videoSource.url && savedProject.videoSource.url.trim() !== '') {
+          if (
+            savedProject.videoSource &&
+            savedProject.videoSource.url &&
+            savedProject.videoSource.url.trim() !== ''
+          ) {
             setVideoSource(savedProject.videoSource);
             setIsVideoDeckOpen(true);
           }
@@ -91,17 +86,17 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [reset]);
 
-  // Debounced auto-save to IndexedDB whenever config, frames, projectName, videoSource or export settings change
+  // Debounced auto-save to IndexedDB whenever the document or video changes.
   useEffect(() => {
     if (!isLoadedFromStorage) return;
 
     const timer = setTimeout(() => {
       saveCurrentStateToStorage(
-        config, 
-        frames, 
-        projectName, 
+        config,
+        frames,
+        projectName,
         {
           exportMode,
           exportMultiplier,
@@ -121,82 +116,79 @@ export default function App() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [config, frames, projectName, exportMode, exportMultiplier, exportFormat, exportQuality, exportFilename, photoPrintConfig, videoSource, isLoadedFromStorage]);
+  }, [
+    config,
+    frames,
+    projectName,
+    exportMode,
+    exportMultiplier,
+    exportFormat,
+    exportQuality,
+    exportFilename,
+    photoPrintConfig,
+    videoSource,
+    isLoadedFromStorage,
+  ]);
 
-  // Sync frames array length when config.frameCount changes
-  const handleUpdateConfig = useCallback((updated: Partial<FilmStripConfig>) => {
-    setConfig((prev) => {
-      const newConfig = { ...prev, ...updated };
-      return newConfig;
-    });
+  // ---- Document mutation handlers (thin wrappers over the reducer) ----
+  const handleUpdateConfig = useCallback(
+    (updates: Partial<FilmStripConfig>) => dispatch({ type: 'UPDATE_CONFIG', updates }),
+    [dispatch]
+  );
 
-    if (updated.frameCount !== undefined) {
-      const targetCount = updated.frameCount;
-      setFrames((prevFrames) => {
-        if (prevFrames.length === targetCount) return prevFrames;
-        if (prevFrames.length < targetCount) {
-          // Add extra empty frames
-          const additions: FrameData[] = Array.from({
-            length: targetCount - prevFrames.length,
-          }).map((_, idx) => ({
-            id: `frame-${prevFrames.length + idx}-${Date.now()}`,
-            imageUrl: null,
-            panX: 0,
-            panY: 0,
-            zoom: 1,
-            rotation: 0,
-            flipH: false,
-            flipV: false,
-            filters: { ...DEFAULT_FILTERS },
-          }));
-          return [...prevFrames, ...additions];
-        } else {
-          // Truncate
-          return prevFrames.slice(0, targetCount);
-        }
-      });
-    }
-  }, []);
+  const handleResetConfig = useCallback(() => dispatch({ type: 'RESET_CONFIG' }), [dispatch]);
 
-  const handleResetConfig = useCallback(() => {
-    setConfig(DEFAULT_CONFIG);
-  }, []);
+  const handleUpdateFrame = useCallback(
+    (index: number, data: Partial<FrameData>) => dispatch({ type: 'UPDATE_FRAME', index, data }),
+    [dispatch]
+  );
 
-  // Update specific frame data
-  const handleUpdateFrame = useCallback((index: number, data: Partial<FrameData>) => {
-    setFrames((prev) => {
-      const next = [...prev];
-      if (next[index]) {
-        next[index] = { ...next[index], ...data };
-      }
-      return next;
-    });
-  }, []);
+  const handleMoveFrame = useCallback(
+    (fromIndex: number, direction: 'left' | 'right') => {
+      const toIndex = direction === 'left' ? fromIndex - 1 : fromIndex + 1;
+      if (toIndex < 0 || toIndex >= frames.length) return;
+      dispatch({ type: 'MOVE_FRAME', fromIndex, direction });
+      setSelectedFrameIndex(toIndex);
+    },
+    [dispatch, frames.length]
+  );
 
-  // Load image from File for frame
-  const handleUploadImageForFrame = useCallback((index: number, file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      const img = new Image();
-      img.onload = () => {
-        handleUpdateFrame(index, {
-          imageUrl: dataUrl,
-          imageName: file.name,
-          imageNaturalWidth: img.naturalWidth,
-          imageNaturalHeight: img.naturalHeight,
-          panX: 0,
-          panY: 0,
-          zoom: 1,
-          rotation: 0,
-        });
+  const handleRemoveImageFromFrame = useCallback(
+    (index: number) => dispatch({ type: 'REMOVE_FRAME_IMAGE', index }),
+    [dispatch]
+  );
+
+  // Load image from File for frame.
+  const handleUploadImageForFrame = useCallback(
+    (index: number, file: File) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        const img = new Image();
+        img.onload = () => {
+          dispatch({
+            type: 'UPDATE_FRAME',
+            index,
+            data: {
+              imageUrl: dataUrl,
+              imageName: file.name,
+              imageNaturalWidth: img.naturalWidth,
+              imageNaturalHeight: img.naturalHeight,
+              panX: 0,
+              panY: 0,
+              zoom: 1,
+              rotation: 0,
+            },
+          });
+        };
+        img.src = dataUrl;
       };
-      img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
-  }, [handleUpdateFrame]);
+      reader.readAsDataURL(file);
+    },
+    [dispatch]
+  );
 
-  // Update frame directly from video frame capture
+  // Update frame directly from video frame capture.
   const handleUpdateFrameFromVideo = useCallback(
     (
       index: number,
@@ -209,21 +201,20 @@ export default function App() {
         imageName: string;
       }
     ) => {
-      handleUpdateFrame(index, {
-        imageUrl: data.imageUrl,
-        imageNaturalWidth: data.imageNaturalWidth,
-        imageNaturalHeight: data.imageNaturalHeight,
-        videoTimestamp: data.videoTimestamp,
-        sourceVideoName: data.sourceVideoName,
-        imageName: data.imageName,
-        panX: 0,
-        panY: 0,
-        zoom: 1,
-        rotation: 0,
+      dispatch({
+        type: 'UPDATE_FRAME',
+        index,
+        data: {
+          ...data,
+          panX: 0,
+          panY: 0,
+          zoom: 1,
+          rotation: 0,
+        },
       });
       setSelectedFrameIndex(index);
     },
-    [handleUpdateFrame]
+    [dispatch]
   );
 
   const handleSetVideoSource = useCallback((source: VideoSourceInfo | null) => {
@@ -237,161 +228,87 @@ export default function App() {
     }
   }, []);
 
-  // Move / Swap frame position left or right
-  const handleMoveFrame = useCallback((fromIndex: number, direction: 'left' | 'right') => {
-    const toIndex = direction === 'left' ? fromIndex - 1 : fromIndex + 1;
-    if (toIndex < 0 || toIndex >= frames.length) return;
-
-    setFrames((prev) => {
-      const next = [...prev];
-      const temp = next[fromIndex];
-      next[fromIndex] = next[toIndex];
-      next[toIndex] = temp;
-      return next;
-    });
-    setSelectedFrameIndex(toIndex);
-  }, [frames.length]);
-
-  // Remove image from frame
-  const handleRemoveImageFromFrame = useCallback((index: number) => {
-    handleUpdateFrame(index, {
-      imageUrl: null,
-      imageName: undefined,
-      imageNaturalWidth: undefined,
-      imageNaturalHeight: undefined,
-      panX: 0,
-      panY: 0,
-      zoom: 1,
-      rotation: 0,
-      flipH: false,
-      flipV: false,
-      filters: { ...DEFAULT_FILTERS },
-    });
-  }, [handleUpdateFrame]);
-
-  // Batch upload multiple images to sequential frames
-  const handleBatchUpload = useCallback((files: FileList) => {
-    const imgFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    imgFiles.forEach((file, i) => {
-      if (i < config.frameCount) {
-        handleUploadImageForFrame(i, file);
-      }
-    });
-    if (imgFiles.length > 0) {
-      setSelectedFrameIndex(0);
-    }
-  }, [config.frameCount, handleUploadImageForFrame]);
-
-  // Load curated sample cinema stills
-  const handleLoadDemoImages = useCallback(() => {
-    setFrames((prev) => {
-      return prev.map((frame, i) => {
-        const sample = SAMPLE_CINEMA_IMAGES[i % SAMPLE_CINEMA_IMAGES.length];
-        return {
-          ...frame,
-          imageUrl: sample.url,
-          imageName: sample.title,
-          panX: 0,
-          panY: 0,
-          zoom: 1,
-          rotation: 0,
-          flipH: false,
-          flipV: false,
-          filters: { ...DEFAULT_FILTERS },
-        };
+  // Batch upload multiple images to sequential frames.
+  const handleBatchUpload = useCallback(
+    (files: FileList) => {
+      const imgFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+      imgFiles.forEach((file, i) => {
+        if (i < config.frameCount) {
+          handleUploadImageForFrame(i, file);
+        }
       });
-    });
-  }, []);
+      if (imgFiles.length > 0) {
+        setSelectedFrameIndex(0);
+      }
+    },
+    [config.frameCount, handleUploadImageForFrame]
+  );
 
-  // Clear all images
+  const handleLoadDemoImages = useCallback(() => dispatch({ type: 'LOAD_DEMO_IMAGES' }), [dispatch]);
+
   const handleClearAllImages = useCallback(() => {
-    setFrames((prev) =>
-      prev.map((frame) => ({
-        ...frame,
-        imageUrl: null,
-        imageName: undefined,
-        panX: 0,
-        panY: 0,
-        zoom: 1,
-        rotation: 0,
-        flipH: false,
-        flipV: false,
-        filters: { ...DEFAULT_FILTERS },
-      }))
-    );
+    dispatch({ type: 'CLEAR_ALL_IMAGES' });
     setSelectedFrameIndex(null);
-  }, []);
+  }, [dispatch]);
 
-  // Full Project Load handler
-  const handleLoadProject = useCallback((project: FilmStripProject) => {
-    if (project.config) {
-      setConfig({ ...DEFAULT_CONFIG, ...project.config });
-    }
-    if (Array.isArray(project.frames)) {
-      setFrames(project.frames);
-    }
-    if (project.projectName) {
-      setProjectName(project.projectName);
-    }
-    if (project.exportMode) {
-      setExportMode(project.exportMode);
-    }
-    if (project.exportMultiplier) {
-      setExportMultiplier(project.exportMultiplier);
-    }
-    if (project.exportFormat) {
-      setExportFormat(project.exportFormat);
-    }
-    if (project.exportQuality !== undefined) {
-      setExportQuality(project.exportQuality);
-    }
-    if (project.exportFilename) {
-      setExportFilename(project.exportFilename);
-    }
-    if (project.photoPrintConfig) {
-      setPhotoPrintConfig({ ...DEFAULT_PHOTO_PRINT_CONFIG, ...project.photoPrintConfig });
-    }
-    if (project.videoSource && project.videoSource.url && project.videoSource.url.trim() !== '') {
-      setVideoSource(project.videoSource);
-      setIsVideoDeckOpen(true);
-    }
-    setSelectedFrameIndex(0);
-    setLastAutoSavedTime(new Date());
-  }, []);
+  const handleLoadProject = useCallback(
+    (project: FilmStripProject) => {
+      dispatch({ type: 'LOAD_PROJECT', project });
+      if (project.videoSource && project.videoSource.url && project.videoSource.url.trim() !== '') {
+        setVideoSource(project.videoSource);
+        setIsVideoDeckOpen(true);
+      } else {
+        setVideoSource(null);
+        setIsVideoDeckOpen(false);
+      }
+      setSelectedFrameIndex(0);
+      setLastAutoSavedTime(new Date());
+    },
+    [dispatch]
+  );
 
-  // Reset to default fresh project
   const handleResetToDefaults = useCallback(() => {
-    setConfig(DEFAULT_CONFIG);
-    setProjectName('Untitled Film Reel');
-    setExportMode('photo_print');
-    setExportMultiplier(2);
-    setExportFormat('image/jpeg');
-    setExportQuality(0.95);
-    setExportFilename('filmstrip-15x10cm-photo');
-    setPhotoPrintConfig(DEFAULT_PHOTO_PRINT_CONFIG);
+    dispatch({ type: 'RESET_TO_DEFAULTS' });
     setVideoSource(null);
     setIsVideoDeckOpen(false);
-    setFrames(
-      Array.from({ length: DEFAULT_CONFIG.frameCount }).map((_, i) => ({
-        id: `frame-${i}-${Date.now()}`,
-        imageUrl: null,
-        panX: 0,
-        panY: 0,
-        zoom: 1,
-        rotation: 0,
-        flipH: false,
-        flipV: false,
-        filters: { ...DEFAULT_FILTERS },
-      }))
-    );
     setSelectedFrameIndex(0);
-  }, []);
+  }, [dispatch]);
 
-  // Keyboard navigation & shortcuts
+  const handleSetProjectName = useCallback(
+    (name: string) => dispatch({ type: 'SET_PROJECT_NAME', name }),
+    [dispatch]
+  );
+
+  const handleUpdateExportSettings = useCallback(
+    (updates: Partial<ExportSettings>) => dispatch({ type: 'SET_EXPORT_SETTINGS', updates }),
+    [dispatch]
+  );
+
+  const handleUpdatePhotoPrintConfig = useCallback(
+    (updates: Partial<PhotoPrintConfig>) => dispatch({ type: 'SET_PHOTO_PRINT_CONFIG', updates }),
+    [dispatch]
+  );
+
+  // Keyboard navigation & shortcuts.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // If typing in input or textarea, don't trigger global shortcuts
+      // If typing in input or textarea, don't trigger global shortcuts.
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+
+      const mod = e.ctrlKey || e.metaKey;
+
+      if (mod && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+
+      if (mod && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault();
+        redo();
         return;
       }
 
@@ -412,7 +329,6 @@ export default function App() {
         (e.altKey || (e.ctrlKey && e.shiftKey)) &&
         (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
       ) {
-        // Alt + Arrow Left/Right swaps frame with adjacent frame
         e.preventDefault();
         handleMoveFrame(selectedFrameIndex, e.key === 'ArrowLeft' ? 'left' : 'right');
       } else if (
@@ -420,7 +336,6 @@ export default function App() {
         frames[selectedFrameIndex]?.imageUrl &&
         ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)
       ) {
-        // When an image is selected, arrow keys move the image inside the frame
         e.preventDefault();
         const step = e.shiftKey ? 20 : 4;
         const currentFrame = frames[selectedFrameIndex];
@@ -433,21 +348,45 @@ export default function App() {
         if (e.key === 'ArrowDown') newPanY += step;
 
         handleUpdateFrame(selectedFrameIndex, { panX: newPanX, panY: newPanY });
-      } else if (e.key === 'ArrowRight' && selectedFrameIndex !== null && !frames[selectedFrameIndex]?.imageUrl) {
-        setSelectedFrameIndex((prev) => (prev !== null ? Math.min(config.frameCount - 1, prev + 1) : null));
-      } else if (e.key === 'ArrowLeft' && selectedFrameIndex !== null && !frames[selectedFrameIndex]?.imageUrl) {
+      } else if (
+        e.key === 'ArrowRight' &&
+        selectedFrameIndex !== null &&
+        !frames[selectedFrameIndex]?.imageUrl
+      ) {
+        setSelectedFrameIndex((prev) =>
+          prev !== null ? Math.min(config.frameCount - 1, prev + 1) : null
+        );
+      } else if (
+        e.key === 'ArrowLeft' &&
+        selectedFrameIndex !== null &&
+        !frames[selectedFrameIndex]?.imageUrl
+      ) {
         setSelectedFrameIndex((prev) => (prev !== null ? Math.max(0, prev - 1) : null));
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedFrameIndex, frames, config.frameCount, isExportModalOpen, isProjectModalOpen, handleRemoveImageFromFrame, handleUpdateFrame, handleMoveFrame]);
+  }, [
+    selectedFrameIndex,
+    frames,
+    config.frameCount,
+    isExportModalOpen,
+    isProjectModalOpen,
+    handleRemoveImageFromFrame,
+    handleUpdateFrame,
+    handleMoveFrame,
+    undo,
+    redo,
+  ]);
 
   const filledFramesCount = frames.filter((f) => !!f.imageUrl).length;
 
   return (
-    <div id="cinema-app-root" className="flex flex-col lg:flex-row h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans">
+    <div
+      id="cinema-app-root"
+      className="flex flex-col lg:flex-row h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans"
+    >
       {/* Left Configuration & Controls Sidebar */}
       <SidebarControls
         config={config}
@@ -482,6 +421,10 @@ export default function App() {
         isVideoDeckOpen={isVideoDeckOpen}
         onToggleVideoDeck={() => setIsVideoDeckOpen((v) => !v)}
         onUpdateFrameFromVideo={handleUpdateFrameFromVideo}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
       />
 
       {/* High-Resolution Export Modal */}
@@ -491,17 +434,17 @@ export default function App() {
         config={config}
         frames={frames}
         exportMode={exportMode}
-        onUpdateExportMode={setExportMode}
+        onUpdateExportMode={(mode) => handleUpdateExportSettings({ exportMode: mode })}
         photoPrintConfig={photoPrintConfig}
-        onUpdatePhotoPrintConfig={setPhotoPrintConfig}
+        onUpdatePhotoPrintConfig={handleUpdatePhotoPrintConfig}
         multiplier={exportMultiplier}
-        onUpdateMultiplier={setExportMultiplier}
+        onUpdateMultiplier={(multiplier) => handleUpdateExportSettings({ exportMultiplier: multiplier })}
         format={exportFormat}
-        onUpdateFormat={setExportFormat}
+        onUpdateFormat={(format) => handleUpdateExportSettings({ exportFormat: format })}
         quality={exportQuality}
-        onUpdateQuality={setExportQuality}
+        onUpdateQuality={(quality) => handleUpdateExportSettings({ exportQuality: quality })}
         filename={exportFilename}
-        onUpdateFilename={setExportFilename}
+        onUpdateFilename={(filename) => handleUpdateExportSettings({ exportFilename: filename })}
         defaultMultiplier={2}
       />
 
@@ -512,7 +455,7 @@ export default function App() {
         config={config}
         frames={frames}
         projectName={projectName}
-        onProjectNameChange={setProjectName}
+        onProjectNameChange={handleSetProjectName}
         onLoadProject={handleLoadProject}
         onResetToDefaults={handleResetToDefaults}
         lastAutoSavedTime={lastAutoSavedTime}
@@ -529,4 +472,3 @@ export default function App() {
     </div>
   );
 }
-

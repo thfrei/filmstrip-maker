@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { FrameData, DEFAULT_FILTERS } from '../types';
 import { formatTimecode } from '../utils/videoExtractor';
+import { computeImageFit } from '../utils/geometry';
 
 interface FrameBottomBarProps {
   frame: FrameData | null;
@@ -200,20 +201,12 @@ export const FrameBottomBar: React.FC<FrameBottomBarProps> = ({
   };
 
   const handleAlign = (hAlign?: 'left' | 'center' | 'right', vAlign?: 'top' | 'middle' | 'bottom') => {
-    const imgAspect = (frame.imageNaturalWidth && frame.imageNaturalHeight)
-      ? frame.imageNaturalWidth / frame.imageNaturalHeight
-      : frameWidth / frameHeight;
-
-    const frameAspect = frameWidth / frameHeight;
-    let baseW = frameWidth;
-    let baseH = frameHeight;
-    if (imgAspect > frameAspect) {
-      baseH = frameHeight;
-      baseW = frameHeight * imgAspect;
-    } else {
-      baseW = frameWidth;
-      baseH = frameWidth / imgAspect;
-    }
+    const { baseW, baseH } = computeImageFit(
+      frame.imageNaturalWidth,
+      frame.imageNaturalHeight,
+      frameWidth,
+      frameHeight
+    );
 
     const currentW = baseW * frame.zoom;
     const currentH = baseH * frame.zoom;

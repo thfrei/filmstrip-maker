@@ -28,6 +28,7 @@ import {
   ArrowLeftRight
 } from 'lucide-react';
 import { FrameData, DEFAULT_FILTERS } from '../types';
+import { computeImageFit } from '../utils/geometry';
 
 interface FrameAdjusterProps {
   frame: FrameData;
@@ -171,20 +172,12 @@ export const FrameAdjuster: React.FC<FrameAdjusterProps> = ({
    */
   const handleAlign = (hAlign?: 'left' | 'center' | 'right', vAlign?: 'top' | 'middle' | 'bottom') => {
     // Estimate image rendered dimensions relative to frame
-    const imgAspect = (frame.imageNaturalWidth && frame.imageNaturalHeight)
-      ? frame.imageNaturalWidth / frame.imageNaturalHeight
-      : frameWidth / frameHeight;
-
-    const frameAspect = frameWidth / frameHeight;
-    let baseW = frameWidth;
-    let baseH = frameHeight;
-    if (imgAspect > frameAspect) {
-      baseH = frameHeight;
-      baseW = frameHeight * imgAspect;
-    } else {
-      baseW = frameWidth;
-      baseH = frameWidth / imgAspect;
-    }
+    const { baseW, baseH } = computeImageFit(
+      frame.imageNaturalWidth,
+      frame.imageNaturalHeight,
+      frameWidth,
+      frameHeight
+    );
 
     const currentW = baseW * frame.zoom;
     const currentH = baseH * frame.zoom;

@@ -20,10 +20,13 @@ import {
   Download,
   ArrowLeft,
   ArrowRight,
-  Film
+  Film,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 import { FilmStripConfig, FrameData, VideoSourceInfo } from '../types';
 import { calculateFilmStripGeometry } from '../utils/canvasExport';
+import { computeImageFit } from '../utils/geometry';
 import { FrameBottomBar } from './FrameBottomBar';
 import { VideoTimelineDeck } from './VideoTimelineDeck';
 import { formatTimecode } from '../utils/videoExtractor';
@@ -51,6 +54,10 @@ interface FilmStripPreviewProps {
     sourceVideoName: string;
     imageName: string;
   }) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
 export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
@@ -69,6 +76,10 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
   isVideoDeckOpen,
   onToggleVideoDeck,
   onUpdateFrameFromVideo,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
@@ -422,6 +433,35 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
 
         {/* Action Buttons: Movie Deck, Save/Load Project & Export */}
         <div className="flex items-center gap-2">
+          {onUndo && (
+            <div className="flex items-center gap-0.5 bg-zinc-950/80 p-1 rounded-lg border border-zinc-800">
+              <button
+                id="btn-undo"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUndo();
+                }}
+                disabled={!canUndo}
+                className="p-1.5 text-zinc-300 hover:text-amber-400 hover:bg-zinc-800 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Undo (Ctrl+Z)"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                id="btn-redo"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRedo?.();
+                }}
+                disabled={!canRedo}
+                className="p-1.5 text-zinc-300 hover:text-amber-400 hover:bg-zinc-800 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Redo (Ctrl+Shift+Z / Ctrl+Y)"
+              >
+                <Redo2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           <button
             id="btn-preview-top-movie-deck"
             onClick={(e) => {
@@ -642,22 +682,12 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
                 const filterString = filterParts.join(' ') || 'none';
 
                 // Calculate uncropped base dimensions matching canvas exporter
-                const imgNaturalW = frameData.imageNaturalWidth;
-                const imgNaturalH = frameData.imageNaturalHeight;
-                const imgAspect = (imgNaturalW && imgNaturalH)
-                  ? (imgNaturalW / imgNaturalH)
-                  : (geo.frameWidth / geo.frameHeight);
-                const frameAspect = geo.frameWidth / geo.frameHeight;
-
-                let baseW = geo.frameWidth;
-                let baseH = geo.frameHeight;
-                if (imgAspect > frameAspect) {
-                  baseH = geo.frameHeight;
-                  baseW = geo.frameHeight * imgAspect;
-                } else {
-                  baseW = geo.frameWidth;
-                  baseH = geo.frameWidth / imgAspect;
-                }
+                const { baseW, baseH } = computeImageFit(
+                  frameData.imageNaturalWidth,
+                  frameData.imageNaturalHeight,
+                  geo.frameWidth,
+                  geo.frameHeight
+                );
 
                 return (
                   <div
@@ -975,6 +1005,8 @@ export const FilmStripPreview: React.FC<FilmStripPreviewProps> = ({
         </div>
 
         <div className="text-[11px] text-zinc-400 hidden md:flex items-center gap-3">
+          <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Ctrl+Z</kbd> <kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Ctrl+Y</kbd> Undo/Redo</span>
+          <span>•</span>
           <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Arrow Keys</kbd> Nudge Image</span>
           <span>•</span>
           <span><kbd className="px-1 py-0.5 bg-zinc-800 text-zinc-300 rounded font-mono text-[10px]">Alt + ←/→</kbd> Swap Frame</span>
